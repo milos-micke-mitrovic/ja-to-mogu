@@ -1,10 +1,12 @@
 import { Metadata } from 'next';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { auth } from '@/lib/auth';
+import { prisma } from '@/lib/prisma';
 import { redirect } from 'next/navigation';
 import { Link } from '@/i18n/routing';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, Button } from '@/components/ui';
-import { Package, MapPin, CheckCircle } from 'lucide-react';
+import { Package, MapPin, CheckCircle, Clock, Car, Flag, Check, ArrowRight } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations('meta');
@@ -17,20 +19,60 @@ interface DashboardPageProps {
   params: Promise<{ locale: string }>;
 }
 
+function getJourneyStatusInfo(status: string) {
+  switch (status) {
+    case 'DEPARTED':
+      return { icon: Car, label: 'Krenuo/la', color: 'text-warning bg-warning/10' };
+    case 'IN_GREECE':
+      return { icon: Flag, label: 'U Grčkoj', color: 'text-primary bg-primary/10' };
+    case 'ARRIVED':
+      return { icon: Check, label: 'Stigao/la', color: 'text-success bg-success/10' };
+    default:
+      return { icon: Clock, label: 'Nije počelo', color: 'text-foreground-muted bg-muted' };
+  }
+}
+
 export default async function DashboardPage({ params }: DashboardPageProps) {
   const { locale } = await params;
   setRequestLocale(locale);
 
   const session = await auth();
   if (!session?.user) {
-    redirect('/login');
+    redirect('/login' as Parameters<typeof redirect>[0]);
   }
 
   const t = await getTranslations('dashboard');
   const tPackages = await getTranslations('packages');
 
-  // TODO: Fetch user's active booking from database
-  const hasActiveBooking = false;
+  // Fetch user's active booking from database
+  const activeBooking = await prisma.booking.findFirst({
+    where: {
+      userId: session.user.id,
+      status: { in: ['PENDING', 'CONFIRMED'] },
+    },
+    include: {
+      accommodation: {
+        include: {
+          owner: {
+            select: {
+              name: true,
+              phone: true,
+            },
+          },
+        },
+      },
+      guide: {
+        select: {
+          name: true,
+          phone: true,
+        },
+      },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  const hasActiveBooking = !!activeBooking;
+  const journeyInfo = activeBooking ? getJourneyStatusInfo(activeBooking.journeyStatus) : null;
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
@@ -44,20 +86,93 @@ export default async function DashboardPage({ params }: DashboardPageProps) {
         </p>
       </div>
 
-      {hasActiveBooking ? (
+      {hasActiveBooking && activeBooking ? (
         /* Active Booking Card */
-        <Card className="mb-8">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <MapPin className="h-5 w-5 text-primary" />
-              {t('currentBooking')}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {/* TODO: Display active booking details */}
-            <p className="text-foreground-muted">Booking details will appear here</p>
-          </CardContent>
-        </Card>
+        <div className="space-y-6">
+          <Card className="border-2 border-primary">
+            <CardHeader>
+              <div className="flex items-start justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <MapPin className="h-5 w-5 text-primary" />
+                    {activeBooking.accommodation.name}
+                  </CardTitle>
+                  <CardDescription>{activeBooking.accommodation.address}</CardDescription>
+                </div>
+                {journeyInfo && (
+                  <span
+                    className={cn(
+                      'flex items-center gap-1 rounded-full px-3 py-1 text-sm font-medium',
+                      journeyInfo.color
+                    )}
+                  >
+                    <journeyInfo.icon className="h-4 w-4" />
+                    {journeyInfo.label}
+                  </span>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <p className="text-sm font-medium text-foreground-muted">Datum dolaska</p>
+                  <p className="font-semibold">
+                    {new Date(activeBooking.arrivalDate).toLocaleDateString('sr-RS', {
+                      weekday: 'long',
+                      day: 'numeric',
+                      month: 'long',
+                    })}
+                  </p>
+                  <p className="text-sm text-foreground-muted">u {activeBooking.arrivalTime}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-foreground-muted">Paket</p>
+                  <p className="font-semibold">
+                    {activeBooking.packageType === 'BONUS' ? tPackages('bonusPackage') : tPackages('basicPackage')}
+                  </p>
+                  <p className="text-sm text-foreground-muted">
+                    {activeBooking.totalPrice.toLocaleString('sr-RS')} RSD
+                  </p>
+                </div>
+              </div>
+
+              {/* Owner Contact */}
+              {activeBooking.accommodation.owner && (
+                <div className="rounded-lg bg-muted p-4">
+                  <p className="text-sm font-medium text-foreground-muted">Vlasnik smeštaja</p>
+                  <p className="font-semibold">{activeBooking.accommodation.owner.name}</p>
+                  {activeBooking.accommodation.owner.phone && (
+                    <p className="text-sm">{activeBooking.accommodation.owner.phone}</p>
+                  )}
+                </div>
+              )}
+
+              {/* Guide Contact (Bonus Package) */}
+              {activeBooking.guide && (
+                <div className="rounded-lg bg-primary/10 p-4">
+                  <p className="text-sm font-medium text-primary">Vodič</p>
+                  <p className="font-semibold">{activeBooking.guide.name}</p>
+                  {activeBooking.guide.phone && (
+                    <p className="text-sm">{activeBooking.guide.phone}</p>
+                  )}
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="flex flex-wrap gap-3 pt-2">
+                <Link href="/journey">
+                  <Button>
+                    Pratite putovanje
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Button>
+                </Link>
+                <Link href="/history">
+                  <Button variant="outline">Istorija rezervacija</Button>
+                </Link>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       ) : (
         /* No Booking - Start Flow */
         <div className="space-y-6">
