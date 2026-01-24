@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useTranslations } from 'next-intl';
 import { useSearchParams } from 'next/navigation';
 import {
@@ -24,47 +24,43 @@ import {
   Check,
   ExternalLink,
   ChevronLeft,
+  Loader2,
+  AlertCircle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatPrice, getGoogleMapsUrl } from '@/lib/utils';
 import { Link } from '@/i18n/routing';
+import { useApi } from '@/hooks';
+import type { Accommodation } from '@/hooks';
+import { ALL_DESTINATIONS } from '@/lib/constants';
 
-// Mock accommodation - will be fetched from API
-const mockAccommodation = {
-  id: '1',
-  name: 'Apartman Sunce',
-  type: 'Apartman',
-  destination: 'POLIHRONO',
-  destinationLabel: 'Polihrono',
-  address: 'Polihrono, Halkidiki',
-  latitude: 39.9589,
-  longitude: 23.7541,
-  beds: 4,
-  rooms: 2,
-  images: ['/placeholder-accommodation.jpg'],
-  pricePerNight: 4500,
-  rating: 4.5,
-  reviewCount: 12,
-  ownerName: 'Nikos Papadopoulos',
-  ownerPhone: '+30 697 123 4567',
-};
+interface TravelFormData {
+  arrivalDate: string;
+  arrivalTime: string;
+  duration: string;
+  destination?: string;
+  guestName?: string;
+  guestPhone?: string;
+  guestEmail?: string;
+  hasViber?: boolean;
+  hasWhatsApp?: boolean;
+  packageType?: string;
+}
 
-export default function BookingConfirmationPage() {
+function BookingConfirmationContent() {
   const t = useTranslations('booking');
   const searchParams = useSearchParams();
-  // TODO: Use accommodationId when fetching from API
-  // const accommodationId = searchParams.get('id');
-  void searchParams; // Suppress unused warning until API integration
+  const accommodationId = searchParams.get('id');
 
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
   const [isConfirmed, setIsConfirmed] = useState(false);
-  const [travelData, setTravelData] = useState<{
-    arrivalDate: string;
-    arrivalTime: string;
-    duration: string;
-    destination?: string;
-  } | null>(null);
+  const [travelData, setTravelData] = useState<TravelFormData | null>(null);
+
+  // Fetch accommodation details
+  const { data: accommodation, isLoading, error } = useApi<Accommodation>(
+    accommodationId ? `/api/accommodations?id=${accommodationId}` : ''
+  );
 
   useEffect(() => {
     // Get travel form data from session
@@ -75,13 +71,37 @@ export default function BookingConfirmationPage() {
   }, []);
 
   const handleConfirmBooking = async () => {
-    if (!termsAccepted) return;
+    if (!termsAccepted || !accommodation || !travelData) return;
 
     setIsConfirming(true);
 
     try {
-      // TODO: Make API call to create booking
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      // Calculate arrival date
+      const arrivalDate = travelData.arrivalDate === 'TODAY'
+        ? new Date().toISOString()
+        : new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
+      // Create booking via API
+      const response = await fetch('/api/bookings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          accommodationId: accommodation.id,
+          arrivalDate,
+          arrivalTime: travelData.arrivalTime,
+          duration: travelData.duration,
+          packageType: travelData.packageType || 'BASIC',
+          guestName: travelData.guestName || '',
+          guestPhone: travelData.guestPhone || '',
+          guestEmail: travelData.guestEmail || '',
+          hasViber: travelData.hasViber || false,
+          hasWhatsApp: travelData.hasWhatsApp || false,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Booking failed');
+      }
 
       // Clear session data
       sessionStorage.removeItem('selectedPackage');
@@ -90,8 +110,8 @@ export default function BookingConfirmationPage() {
       sessionStorage.removeItem('selectedAccommodation');
 
       setIsConfirmed(true);
-    } catch (error) {
-      console.error('Booking error:', error);
+    } catch (err) {
+      console.error('Booking error:', err);
     } finally {
       setIsConfirming(false);
     }
@@ -114,7 +134,37 @@ export default function BookingConfirmationPage() {
   };
 
   const durationDays = travelData ? getDurationDays(travelData.duration) : 1;
-  const totalPrice = mockAccommodation.pricePerNight * durationDays;
+  const pricePerNight = accommodation?.minPricePerNight || 0;
+  const totalPrice = pricePerNight * durationDays;
+
+  // Get destination label
+  const getDestinationLabel = (destination: string) => {
+    const dest = ALL_DESTINATIONS.find((d) => d.value === destination);
+    return dest?.label || destination;
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-[400px] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (error || !accommodation) {
+    return (
+      <div className="mx-auto max-w-2xl px-4 py-12 text-center">
+        <AlertCircle className="mx-auto h-12 w-12 text-error" />
+        <h2 className="mt-4 text-xl font-bold">Smeštaj nije pronađen</h2>
+        <p className="mt-2 text-foreground-muted">
+          {error || 'Molimo izaberite smeštaj iz kataloga.'}
+        </p>
+        <Link href="/catalog">
+          <Button className="mt-4">Nazad na katalog</Button>
+        </Link>
+      </div>
+    );
+  }
 
   if (isConfirmed) {
     return (
@@ -135,23 +185,25 @@ export default function BookingConfirmationPage() {
                 <Home className="h-8 w-8 text-foreground-muted" />
               </div>
               <div>
-                <h3 className="font-semibold">{mockAccommodation.name}</h3>
-                <p className="text-sm text-foreground-muted">{mockAccommodation.address}</p>
+                <h3 className="font-semibold">{accommodation.name}</h3>
+                <p className="text-sm text-foreground-muted">{accommodation.address}</p>
               </div>
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <p className="text-sm text-foreground-muted">{t('ownerName')}</p>
-                <p className="font-medium">{mockAccommodation.ownerName}</p>
-              </div>
+              {accommodation.owner && (
+                <div>
+                  <p className="text-sm text-foreground-muted">{t('ownerName')}</p>
+                  <p className="font-medium">{accommodation.owner.name}</p>
+                </div>
+              )}
               <div>
                 <p className="text-sm text-foreground-muted">{t('stayDuration')}</p>
                 <p className="font-medium">{durationDays} noćenja</p>
               </div>
               <div>
                 <p className="text-sm text-foreground-muted">{t('destination')}</p>
-                <p className="font-medium">{mockAccommodation.destinationLabel}</p>
+                <p className="font-medium">{getDestinationLabel(accommodation.destination)}</p>
               </div>
               <div>
                 <p className="text-sm text-foreground-muted">{t('totalPrice')}</p>
@@ -160,7 +212,7 @@ export default function BookingConfirmationPage() {
             </div>
 
             <a
-              href={getGoogleMapsUrl(mockAccommodation.latitude, mockAccommodation.longitude)}
+              href={getGoogleMapsUrl(accommodation.latitude, accommodation.longitude)}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 text-primary hover:underline"
@@ -217,12 +269,12 @@ export default function BookingConfirmationPage() {
             </div>
 
             <div>
-              <h3 className="text-lg font-semibold">{mockAccommodation.name}</h3>
-              <p className="text-sm text-foreground-muted">{mockAccommodation.type}</p>
+              <h3 className="text-lg font-semibold">{accommodation.name}</h3>
+              <p className="text-sm text-foreground-muted">{accommodation.type}</p>
             </div>
 
             {/* Rating */}
-            {mockAccommodation.rating && (
+            {accommodation.rating != null && accommodation.rating > 0 && (
               <div className="flex items-center gap-2">
                 <div className="flex items-center gap-1">
                   {[1, 2, 3, 4, 5].map((star) => (
@@ -230,7 +282,7 @@ export default function BookingConfirmationPage() {
                       key={star}
                       className={cn(
                         'h-4 w-4',
-                        star <= mockAccommodation.rating
+                        star <= (accommodation.rating || 0)
                           ? 'fill-primary text-primary'
                           : 'text-muted'
                       )}
@@ -238,7 +290,7 @@ export default function BookingConfirmationPage() {
                   ))}
                 </div>
                 <span className="text-sm text-foreground-muted">
-                  ({mockAccommodation.reviewCount} ocena)
+                  ({accommodation.reviewCount || 0} ocena)
                 </span>
               </div>
             )}
@@ -247,11 +299,11 @@ export default function BookingConfirmationPage() {
             <div className="grid grid-cols-2 gap-4">
               <div className="flex items-center gap-2">
                 <Bed className="h-4 w-4 text-foreground-muted" />
-                <span className="text-sm">{mockAccommodation.beds} kreveta</span>
+                <span className="text-sm">{accommodation.beds} kreveta</span>
               </div>
               <div className="flex items-center gap-2">
                 <Home className="h-4 w-4 text-foreground-muted" />
-                <span className="text-sm">{mockAccommodation.rooms} sobe</span>
+                <span className="text-sm">{accommodation.rooms} sobe</span>
               </div>
             </div>
 
@@ -259,9 +311,9 @@ export default function BookingConfirmationPage() {
             <div className="flex items-start gap-2">
               <MapPin className="mt-0.5 h-4 w-4 flex-shrink-0 text-foreground-muted" />
               <div>
-                <p className="text-sm">{mockAccommodation.address}</p>
+                <p className="text-sm">{accommodation.address}</p>
                 <a
-                  href={getGoogleMapsUrl(mockAccommodation.latitude, mockAccommodation.longitude)}
+                  href={getGoogleMapsUrl(accommodation.latitude, accommodation.longitude)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-sm text-primary hover:underline"
@@ -312,7 +364,7 @@ export default function BookingConfirmationPage() {
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-foreground-muted">{t('pricePerNight')}</span>
-                <span>{formatPrice(mockAccommodation.pricePerNight)}</span>
+                <span>{formatPrice(pricePerNight)}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-foreground-muted">Broj noćenja</span>
@@ -362,5 +414,21 @@ export default function BookingConfirmationPage() {
         </CardFooter>
       </Card>
     </div>
+  );
+}
+
+function BookingConfirmationFallback() {
+  return (
+    <div className="flex min-h-[400px] items-center justify-center">
+      <Loader2 className="h-8 w-8 animate-spin text-primary" />
+    </div>
+  );
+}
+
+export default function BookingConfirmationPage() {
+  return (
+    <Suspense fallback={<BookingConfirmationFallback />}>
+      <BookingConfirmationContent />
+    </Suspense>
   );
 }
