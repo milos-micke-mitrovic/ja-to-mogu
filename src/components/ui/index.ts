@@ -14,3 +14,4 @@ export {
   SelectSeparator,
 } from './select';
 export { Separator } from './separator';
+export { Spinner } from './spinner';

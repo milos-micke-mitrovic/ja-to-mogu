@@ -96,8 +96,17 @@
   --radius-full: 9999px;
 
   /* Font families */
-  --font-sans: var(--font-geist-sans), system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace;
+  --font-sans: var(--font-inter), system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: var(--font-mono), ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace;
+
+  /* Z-index scale */
+  --z-dropdown: 50;
+  --z-sticky: 100;
+  --z-fixed: 200;
+  --z-modal-backdrop: 300;
+  --z-modal: 400;
+  --z-popover: 500;
+  --z-tooltip: 600;
 }
 
 /* Dark mode - can be enabled later */
@@ -227,6 +236,15 @@
   /* Fonts */
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
+
+  /* Z-index scale */
+  --z-dropdown: var(--z-dropdown);
+  --z-sticky: var(--z-sticky);
+  --z-fixed: var(--z-fixed);
+  --z-modal-backdrop: var(--z-modal-backdrop);
+  --z-modal: var(--z-modal);
+  --z-popover: var(--z-popover);
+  --z-tooltip: var(--z-tooltip);
 }
 
 /* Base styles */
