@@ -84,6 +84,7 @@ export async function POST(request: NextRequest) {
       packageType,
       totalPrice,
       travelFormData,
+      paymentData,
     } = body;
 
     // Validate required fields
@@ -185,6 +186,24 @@ export async function POST(request: NextRequest) {
     await prisma.accommodation.update({
       where: { id: accommodationId },
       data: { status: 'BOOKED' },
+    });
+
+    // Create payment record
+    await prisma.payment.create({
+      data: {
+        bookingId: booking.id,
+        userId: session.user.id,
+        amount: totalPrice,
+        currency: 'RSD',
+        status: 'PENDING', // Will be updated when payment is confirmed
+        paymentMethod: paymentData?.paymentMethod || 'platform',
+        metadata: paymentData ? {
+          payerName: paymentData.name,
+          payerEmail: paymentData.email,
+          payerPhone: paymentData.phone,
+          paidAt: paymentData.paidAt,
+        } : undefined,
+      },
     });
 
     // Send confirmation emails (don't block response)

@@ -11,6 +11,7 @@ import {
   Users,
   Compass,
   Calendar,
+  CreditCard,
   UserCircle,
   Settings,
   LogOut,
@@ -38,6 +39,7 @@ export function AdminSidebar({ user }: AdminSidebarProps) {
     { href: '/admin/owners', icon: Users, label: t('owners') },
     { href: '/admin/guides', icon: Compass, label: t('guides') },
     { href: '/admin/bookings', icon: Calendar, label: t('bookings') },
+    { href: '/admin/payments', icon: CreditCard, label: t('payments') },
     { href: '/admin/clients', icon: UserCircle, label: t('clients') },
     { href: '/admin/settings', icon: Settings, label: t('settings') },
   ];
