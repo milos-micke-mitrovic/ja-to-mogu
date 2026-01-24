@@ -1,0 +1,395 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User roles enum
+enum UserRole {
+  CLIENT
+  OWNER
+  GUIDE
+  ADMIN
+}
+
+// Package types enum
+enum PackageType {
+  BASIC
+  BONUS
+}
+
+// Booking status enum
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+  NO_SHOW
+}
+
+// Accommodation status enum
+enum AccommodationStatus {
+  AVAILABLE
+  BOOKED
+  UNAVAILABLE
+}
+
+// Journey status enum
+enum JourneyStatus {
+  NOT_STARTED
+  DEPARTED
+  IN_GREECE
+  ARRIVED
+}
+
+// Duration options enum
+enum Duration {
+  TWO_THREE   @map("2-3")
+  FOUR_SEVEN  @map("4-7")
+  EIGHT_TEN   @map("8-10")
+  TEN_PLUS    @map("10+")
+}
+
+// Season enum for pricing
+enum Season {
+  LOW
+  MID
+  HIGH
+}
+
+// Destination enum
+enum Destination {
+  POLIHRONO
+  KALITEA
+  HANIOTI
+  PEFKOHORI
+  SIVIRI
+  KASANDRA_OTHER
+  NIKITI
+  NEOS_MARMARAS
+  SARTI
+  VOURVOUROU
+  SITONIJA_OTHER
+  PARALIJA
+  OLIMPIK_BIC
+  LEPTOKARIJA
+  PLATAMONA
+}
+
+// Payment status enum
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+// User model - handles all user types (clients, owners, guides, admins)
+model User {
+  id                String    @id @default(cuid())
+  email             String    @unique
+  emailVerified     DateTime?
+  hashedPassword    String?
+  name              String?
+  phone             String?
+  address           String?
+  image             String?
+  role              UserRole  @default(CLIENT)
+  isActive          Boolean   @default(true)
+
+  // Relations
+  accounts          Account[]
+  sessions          Session[]
+
+  // Client-specific relations
+  bookings          Booking[]          @relation("ClientBookings")
+  reviews           Review[]           @relation("ClientReviews")
+  payments          Payment[]          @relation("ClientPayments")
+
+  // Owner-specific relations
+  accommodations    Accommodation[]    @relation("OwnerAccommodations")
+
+  // Guide-specific relations
+  guideAvailability GuideAvailability[] @relation("GuideAvailabilities")
+  guidedBookings    Booking[]          @relation("GuideBookings")
+
+  // Verification tokens
+  verificationTokens VerificationToken[]
+  passwordResetTokens PasswordResetToken[]
+
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@map("users")
+}
+
+// NextAuth Account model
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+// NextAuth Session model
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+// Email verification token
+model VerificationToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  expires   DateTime
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@map("verification_tokens")
+}
+
+// Password reset token
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  expires   DateTime
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@map("password_reset_tokens")
+}
+
+// Accommodation model
+model Accommodation {
+  id              String              @id @default(cuid())
+  name            String
+  description     String?             @db.Text
+  type            String              // Apartman, Soba, Vila, etc.
+  destination     Destination
+  address         String
+  latitude        Float
+  longitude       Float
+  beds            Int
+  rooms           Int
+  hasParking      Boolean             @default(false)
+  hasAC           Boolean             @default(false)
+  hasWifi         Boolean             @default(false)
+  hasKitchen      Boolean             @default(false)
+  hasPool         Boolean             @default(false)
+  hasSeaView      Boolean             @default(false)
+  distanceToBeach Int?                // in meters
+  images          String[]            // Array of image URLs
+  status          AccommodationStatus @default(AVAILABLE)
+
+  // Owner relation
+  ownerId         String
+  owner           User                @relation("OwnerAccommodations", fields: [ownerId], references: [id])
+
+  // Other relations
+  seasonalPrices  SeasonalPrice[]
+  bookings        Booking[]
+  reviews         Review[]
+
+  // Availability settings from owner
+  canReceiveFrom  String?             // Time when owner can receive guests (e.g., "14:00")
+  canReceiveTo    String?             // Until when (e.g., "22:00")
+
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@index([destination, status])
+  @@index([ownerId])
+  @@map("accommodations")
+}
+
+// Seasonal pricing model
+model SeasonalPrice {
+  id              String        @id @default(cuid())
+  accommodationId String
+  accommodation   Accommodation @relation(fields: [accommodationId], references: [id], onDelete: Cascade)
+  season          Season
+  duration        Duration
+  pricePerNight   Int           // Price in RSD
+
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@unique([accommodationId, season, duration])
+  @@map("seasonal_prices")
+}
+
+// Booking model
+model Booking {
+  id              String        @id @default(cuid())
+
+  // Client
+  userId          String
+  user            User          @relation("ClientBookings", fields: [userId], references: [id])
+
+  // Accommodation
+  accommodationId String
+  accommodation   Accommodation @relation(fields: [accommodationId], references: [id])
+
+  // Package info
+  packageType     PackageType
+  status          BookingStatus @default(PENDING)
+
+  // Travel details
+  arrivalDate     DateTime
+  duration        Duration
+  arrivalTime     String        // e.g., "18:00"
+  guestName       String
+  guestPhone      String
+  guestEmail      String
+  guestAddress    String?
+
+  // Communication preferences
+  hasViber        Boolean       @default(false)
+  hasWhatsApp     Boolean       @default(false)
+
+  // Pricing
+  totalPrice      Int           // Total price in RSD
+
+  // Journey tracking
+  journeyStatus   JourneyStatus @default(NOT_STARTED)
+  departedAt      DateTime?
+  arrivedGreeceAt DateTime?
+  arrivedDestinationAt DateTime?
+
+  // Guide (only for BONUS package)
+  guideId         String?
+  guide           User?         @relation("GuideBookings", fields: [guideId], references: [id])
+
+  // Reservation validity
+  expiresAt       DateTime      // 36 hours from booking time
+
+  // Terms acceptance
+  termsAcceptedAt DateTime?
+
+  // Other relations
+  payment         Payment?
+  review          Review?
+
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([userId])
+  @@index([accommodationId])
+  @@index([guideId])
+  @@index([status])
+  @@index([expiresAt])
+  @@map("bookings")
+}
+
+// Guide availability model
+model GuideAvailability {
+  id            String      @id @default(cuid())
+  guideId       String
+  guide         User        @relation("GuideAvailabilities", fields: [guideId], references: [id], onDelete: Cascade)
+  destination   Destination
+  availableFrom DateTime
+  availableTo   DateTime
+  isActive      Boolean     @default(true)
+
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([guideId])
+  @@index([destination, availableFrom, availableTo])
+  @@map("guide_availabilities")
+}
+
+// Review model
+model Review {
+  id              String        @id @default(cuid())
+  bookingId       String        @unique
+  booking         Booking       @relation(fields: [bookingId], references: [id])
+  userId          String
+  user            User          @relation("ClientReviews", fields: [userId], references: [id])
+  accommodationId String
+  accommodation   Accommodation @relation(fields: [accommodationId], references: [id])
+  rating          Int           // 1-5
+  comment         String?       @db.Text
+  isVerified      Boolean       @default(true) // Guest has stayed
+
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([accommodationId])
+  @@index([userId])
+  @@map("reviews")
+}
+
+// Payment model
+model Payment {
+  id              String        @id @default(cuid())
+  bookingId       String        @unique
+  booking         Booking       @relation(fields: [bookingId], references: [id])
+  userId          String
+  user            User          @relation("ClientPayments", fields: [userId], references: [id])
+  amount          Int           // Amount in smallest currency unit (dinars for RSD)
+  currency        String        @default("RSD")
+  status          PaymentStatus @default(PENDING)
+  paymentMethod   String?       // e.g., "card", "bank_transfer"
+  transactionId   String?       // External payment provider ID
+  metadata        Json?         // Additional payment data
+
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([userId])
+  @@index([status])
+  @@map("payments")
+}
+
+// Location availability settings (admin can block locations)
+model LocationAvailability {
+  id          String      @id @default(cuid())
+  destination Destination @unique
+  isAvailable Boolean     @default(true)
+  message     String?     // Custom message when not available
+
+  updatedAt   DateTime    @updatedAt
+
+  @@map("location_availability")
+}
+
+// Package settings (admin can change prices)
+model PackageSetting {
+  id          String      @id @default(cuid())
+  packageType PackageType @unique
+  price       Int         // Price in RSD
+  isActive    Boolean     @default(true)
+
+  updatedAt   DateTime    @updatedAt
+
+  @@map("package_settings")
+}

@@ -1,26 +1,281 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Primary colors - Yellow theme */
+  --color-primary: #F5B800;
+  --color-primary-hover: #E5AB00;
+  --color-primary-light: #FFF4CC;
+  --color-primary-dark: #C49400;
+  --color-primary-foreground: #1A1A1A;
+
+  /* Secondary colors */
+  --color-secondary: #1A1A1A;
+  --color-secondary-hover: #2D2D2D;
+  --color-secondary-light: #404040;
+  --color-secondary-foreground: #FFFFFF;
+
+  /* Accent colors */
+  --color-accent: #F5B800;
+  --color-accent-hover: #E5AB00;
+  --color-accent-foreground: #1A1A1A;
+
+  /* Background colors */
+  --color-background: #FFFFFF;
+  --color-background-secondary: #F9FAFB;
+  --color-background-tertiary: #F3F4F6;
+
+  /* Foreground / Text colors */
+  --color-foreground: #1A1A1A;
+  --color-foreground-muted: #6B7280;
+  --color-foreground-subtle: #9CA3AF;
+
+  /* Border colors */
+  --color-border: #E5E7EB;
+  --color-border-hover: #D1D5DB;
+  --color-border-focus: #F5B800;
+
+  /* Status colors */
+  --color-success: #10B981;
+  --color-success-light: #D1FAE5;
+  --color-success-foreground: #065F46;
+
+  --color-error: #EF4444;
+  --color-error-light: #FEE2E2;
+  --color-error-foreground: #991B1B;
+
+  --color-warning: #F59E0B;
+  --color-warning-light: #FEF3C7;
+  --color-warning-foreground: #92400E;
+
+  --color-info: #3B82F6;
+  --color-info-light: #DBEAFE;
+  --color-info-foreground: #1E40AF;
+
+  /* Accommodation status colors */
+  --color-available: #22C55E;
+  --color-available-light: #DCFCE7;
+  --color-booked: #3B82F6;
+  --color-booked-light: #DBEAFE;
+  --color-unavailable: #9CA3AF;
+  --color-unavailable-light: #F3F4F6;
+
+  /* Card colors */
+  --color-card: #FFFFFF;
+  --color-card-hover: #F9FAFB;
+  --color-card-foreground: #1A1A1A;
+
+  /* Input colors */
+  --color-input: #FFFFFF;
+  --color-input-border: #E5E7EB;
+  --color-input-placeholder: #9CA3AF;
+  --color-input-focus: #F5B800;
+
+  /* Muted colors */
+  --color-muted: #F3F4F6;
+  --color-muted-foreground: #6B7280;
+
+  /* Popover colors */
+  --color-popover: #FFFFFF;
+  --color-popover-foreground: #1A1A1A;
+
+  /* Ring color for focus states */
+  --color-ring: #F5B800;
+
+  /* Shadow colors */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+
+  /* Border radius */
+  --radius-sm: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+  --radius-2xl: 1rem;
+  --radius-full: 9999px;
+
+  /* Font families */
+  --font-sans: var(--font-geist-sans), system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
+/* Dark mode - can be enabled later */
 @media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  :root.dark-mode-enabled {
+    --color-primary: #F5B800;
+    --color-primary-hover: #FFD700;
+    --color-primary-light: #3D3000;
+    --color-primary-dark: #E5AB00;
+    --color-primary-foreground: #1A1A1A;
+
+    --color-secondary: #E5E7EB;
+    --color-secondary-hover: #D1D5DB;
+    --color-secondary-light: #374151;
+    --color-secondary-foreground: #1A1A1A;
+
+    --color-background: #0A0A0A;
+    --color-background-secondary: #171717;
+    --color-background-tertiary: #262626;
+
+    --color-foreground: #EDEDED;
+    --color-foreground-muted: #A1A1AA;
+    --color-foreground-subtle: #71717A;
+
+    --color-border: #2D2D2D;
+    --color-border-hover: #404040;
+
+    --color-card: #171717;
+    --color-card-hover: #262626;
+    --color-card-foreground: #EDEDED;
+
+    --color-input: #171717;
+    --color-input-border: #2D2D2D;
+
+    --color-muted: #262626;
+    --color-muted-foreground: #A1A1AA;
+
+    --color-popover: #171717;
+    --color-popover-foreground: #EDEDED;
   }
 }
 
+/* Tailwind CSS v4 theme configuration */
+@theme inline {
+  /* Colors */
+  --color-primary: var(--color-primary);
+  --color-primary-hover: var(--color-primary-hover);
+  --color-primary-light: var(--color-primary-light);
+  --color-primary-dark: var(--color-primary-dark);
+  --color-primary-foreground: var(--color-primary-foreground);
+
+  --color-secondary: var(--color-secondary);
+  --color-secondary-hover: var(--color-secondary-hover);
+  --color-secondary-light: var(--color-secondary-light);
+  --color-secondary-foreground: var(--color-secondary-foreground);
+
+  --color-accent: var(--color-accent);
+  --color-accent-hover: var(--color-accent-hover);
+  --color-accent-foreground: var(--color-accent-foreground);
+
+  --color-background: var(--color-background);
+  --color-background-secondary: var(--color-background-secondary);
+  --color-background-tertiary: var(--color-background-tertiary);
+
+  --color-foreground: var(--color-foreground);
+  --color-foreground-muted: var(--color-foreground-muted);
+  --color-foreground-subtle: var(--color-foreground-subtle);
+
+  --color-border: var(--color-border);
+  --color-border-hover: var(--color-border-hover);
+  --color-border-focus: var(--color-border-focus);
+
+  --color-success: var(--color-success);
+  --color-success-light: var(--color-success-light);
+  --color-success-foreground: var(--color-success-foreground);
+
+  --color-error: var(--color-error);
+  --color-error-light: var(--color-error-light);
+  --color-error-foreground: var(--color-error-foreground);
+
+  --color-warning: var(--color-warning);
+  --color-warning-light: var(--color-warning-light);
+  --color-warning-foreground: var(--color-warning-foreground);
+
+  --color-info: var(--color-info);
+  --color-info-light: var(--color-info-light);
+  --color-info-foreground: var(--color-info-foreground);
+
+  --color-available: var(--color-available);
+  --color-available-light: var(--color-available-light);
+  --color-booked: var(--color-booked);
+  --color-booked-light: var(--color-booked-light);
+  --color-unavailable: var(--color-unavailable);
+  --color-unavailable-light: var(--color-unavailable-light);
+
+  --color-card: var(--color-card);
+  --color-card-hover: var(--color-card-hover);
+  --color-card-foreground: var(--color-card-foreground);
+
+  --color-input: var(--color-input);
+  --color-input-border: var(--color-input-border);
+  --color-input-placeholder: var(--color-input-placeholder);
+  --color-input-focus: var(--color-input-focus);
+
+  --color-muted: var(--color-muted);
+  --color-muted-foreground: var(--color-muted-foreground);
+
+  --color-popover: var(--color-popover);
+  --color-popover-foreground: var(--color-popover-foreground);
+
+  --color-ring: var(--color-ring);
+
+  /* Shadows */
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+  --shadow-xl: var(--shadow-xl);
+
+  /* Border radius */
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
+  --radius-2xl: var(--radius-2xl);
+  --radius-full: var(--radius-full);
+
+  /* Fonts */
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+}
+
+/* Base styles */
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--color-background);
+  color: var(--color-foreground);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Focus visible styles */
+*:focus-visible {
+  outline: 2px solid var(--color-ring);
+  outline-offset: 2px;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-background-secondary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border-hover);
+  border-radius: var(--radius-full);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-foreground-subtle);
+}
+
+/* Selection styles */
+::selection {
+  background-color: var(--color-primary-light);
+  color: var(--color-primary-foreground);
+}
+
+/* Smooth transitions for interactive elements */
+button,
+a,
+input,
+select,
+textarea {
+  transition-property: color, background-color, border-color, box-shadow;
+  transition-duration: 150ms;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
 }
