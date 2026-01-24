@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { prisma } from '@/lib/db';
 import { resetPasswordRequestSchema, resetPasswordSchema } from '@/lib/validations/auth';
+import { sendPasswordResetEmail } from '@/lib/email';
 
 // Request password reset
 export async function POST(request: Request) {
@@ -46,8 +47,10 @@ export async function POST(request: Request) {
       },
     });
 
-    // TODO: Send password reset email using Resend
-    // For now, just return success
+    // Send password reset email (don't expose if it fails for security)
+    sendPasswordResetEmail(user.email, user.name, resetToken).catch((err) => {
+      console.error('Failed to send password reset email:', err);
+    });
 
     return NextResponse.json({
       success: true,

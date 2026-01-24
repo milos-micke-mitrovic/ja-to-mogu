@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { hash } from 'bcryptjs';
+import crypto from 'crypto';
 import { prisma } from '@/lib/prisma';
+import { sendVerificationEmail } from '@/lib/email';
 
 export async function POST(request: NextRequest) {
   try {
@@ -53,8 +55,28 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // Create verification token
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    const expires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
+    await prisma.verificationToken.create({
+      data: {
+        token: verificationToken,
+        userId: user.id,
+        expires,
+      },
+    });
+
+    // Send verification email (don't block registration if email fails)
+    sendVerificationEmail(user.email, user.name || 'korisniče', verificationToken).catch((err) => {
+      console.error('Failed to send verification email:', err);
+    });
+
     return NextResponse.json(
-      { message: 'Registracija uspešna', user },
+      {
+        message: 'Registracija uspešna. Proverite email za verifikaciju.',
+        user,
+      },
       { status: 201 }
     );
   } catch (error) {

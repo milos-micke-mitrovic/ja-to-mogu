@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { auth } from '@/lib/auth';
+import { sendBookingConfirmationEmail, sendOwnerBookingNotification } from '@/lib/email';
+import { formatDate } from '@/lib/utils';
 
 // GET - Fetch user's bookings
 export async function GET(request: NextRequest) {
@@ -164,6 +166,7 @@ export async function POST(request: NextRequest) {
             owner: {
               select: {
                 name: true,
+                email: true,
                 phone: true,
               },
             },
@@ -183,6 +186,44 @@ export async function POST(request: NextRequest) {
       where: { id: accommodationId },
       data: { status: 'BOOKED' },
     });
+
+    // Send confirmation emails (don't block response)
+    const guestEmail = booking.guestEmail;
+    if (guestEmail) {
+      sendBookingConfirmationEmail({
+        bookingId: booking.id,
+        guestName: booking.guestName || 'Gost',
+        guestEmail,
+        accommodationName: booking.accommodation.name,
+        accommodationAddress: booking.accommodation.address || '',
+        destination: booking.accommodation.destination,
+        arrivalDate: formatDate(booking.arrivalDate.toISOString()),
+        duration: booking.duration,
+        packageType: booking.packageType as 'BASIC' | 'BONUS',
+        totalPrice: booking.totalPrice,
+        ownerName: booking.accommodation.owner?.name || undefined,
+        ownerPhone: booking.accommodation.owner?.phone || undefined,
+      }).catch((err) => {
+        console.error('Failed to send guest confirmation email:', err);
+      });
+    }
+
+    // Send notification to owner
+    const ownerEmail = booking.accommodation.owner?.email;
+    if (ownerEmail) {
+      sendOwnerBookingNotification({
+        ownerName: booking.accommodation.owner?.name || 'Vlasniče',
+        ownerEmail,
+        guestName: booking.guestName || 'Gost',
+        guestPhone: booking.guestPhone || '',
+        accommodationName: booking.accommodation.name,
+        arrivalDate: formatDate(booking.arrivalDate.toISOString()),
+        duration: booking.duration,
+        packageType: booking.packageType as 'BASIC' | 'BONUS',
+      }).catch((err) => {
+        console.error('Failed to send owner notification email:', err);
+      });
+    }
 
     return NextResponse.json(booking, { status: 201 });
   } catch (error) {
