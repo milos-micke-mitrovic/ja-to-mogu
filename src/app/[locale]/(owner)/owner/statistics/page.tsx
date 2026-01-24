@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useTranslations } from 'next-intl';
 import {
   Card,
@@ -18,70 +18,123 @@ import {
   Calendar,
   Star,
   DollarSign,
+  Loader2,
 } from 'lucide-react';
 import { formatPrice } from '@/lib/utils';
+import { useApi, useOwnerAccommodations } from '@/hooks';
 
-// Mock statistics data
-const mockStats = {
-  totalEarnings: 345000,
-  monthlyEarnings: 45000,
-  lastMonthEarnings: 52000,
-  yearlyEarnings: 345000,
-  occupancyRate: 78,
-  averageRating: 4.6,
-  totalReviews: 45,
-  totalBookings: 32,
-  completedBookings: 28,
-  cancelledBookings: 2,
-};
-
-const mockMonthlyData = [
-  { month: 'Jan', earnings: 0, bookings: 0 },
-  { month: 'Feb', earnings: 0, bookings: 0 },
-  { month: 'Mar', earnings: 0, bookings: 0 },
-  { month: 'Apr', earnings: 15000, bookings: 2 },
-  { month: 'Maj', earnings: 35000, bookings: 5 },
-  { month: 'Jun', earnings: 78000, bookings: 8 },
-  { month: 'Jul', earnings: 120000, bookings: 12 },
-  { month: 'Avg', earnings: 97000, bookings: 10 },
-  { month: 'Sep', earnings: 0, bookings: 0 },
-  { month: 'Okt', earnings: 0, bookings: 0 },
-  { month: 'Nov', earnings: 0, bookings: 0 },
-  { month: 'Dec', earnings: 0, bookings: 0 },
-];
-
-const mockAccommodationStats = [
-  {
-    id: '1',
-    name: 'Apartman Sunce',
-    earnings: 156000,
-    bookings: 18,
-    occupancyRate: 85,
-    rating: 4.8,
-  },
-  {
-    id: '2',
-    name: 'Vila Panorama',
-    earnings: 168000,
-    bookings: 12,
-    occupancyRate: 72,
-    rating: 4.5,
-  },
-  {
-    id: '3',
-    name: 'Studio More',
-    earnings: 21000,
-    bookings: 7,
-    occupancyRate: 65,
-    rating: 4.3,
-  },
-];
+interface OwnerBooking {
+  id: string;
+  status: string;
+  totalPrice: number;
+  arrivalDate: string;
+  accommodation: {
+    id: string;
+    name: string;
+  };
+}
 
 export default function OwnerStatisticsPage() {
   const t = useTranslations('ownerDashboard');
   const [timePeriod, setTimePeriod] = useState('thisYear');
 
-  const maxEarnings = Math.max(...mockMonthlyData.map((d) => d.earnings));
+  // Fetch data
+  const { data: accommodations, isLoading: loadingAccommodations } = useOwnerAccommodations();
+  const { data: bookings, isLoading: loadingBookings } = useApi<OwnerBooking[]>('/api/owner/bookings');
+
+  const isLoading = loadingAccommodations || loadingBookings;
+
+  // Calculate stats from real data
+  const stats = useMemo(() => {
+    if (!bookings) return {
+      totalEarnings: 0,
+      monthlyEarnings: 0,
+      lastMonthEarnings: 0,
+      totalBookings: 0,
+      completedBookings: 0,
+      cancelledBookings: 0,
+    };
+
+    const now = new Date();
+    const thisMonth = now.getMonth();
+    const lastMonth = thisMonth === 0 ? 11 : thisMonth - 1;
+
+    const completedBookings = bookings.filter((b) => b.status === 'COMPLETED');
+    const confirmedBookings = bookings.filter((b) => b.status === 'CONFIRMED');
+    const cancelledBookings = bookings.filter((b) => b.status === 'CANCELLED');
+
+    const totalEarnings = [...completedBookings, ...confirmedBookings]
+      .reduce((sum, b) => sum + b.totalPrice, 0);
+
+    const monthlyEarnings = [...completedBookings, ...confirmedBookings]
+      .filter((b) => new Date(b.arrivalDate).getMonth() === thisMonth)
+      .reduce((sum, b) => sum + b.totalPrice, 0);
+
+    const lastMonthEarnings = [...completedBookings, ...confirmedBookings]
+      .filter((b) => new Date(b.arrivalDate).getMonth() === lastMonth)
+      .reduce((sum, b) => sum + b.totalPrice, 0);
+
+    return {
+      totalEarnings,
+      monthlyEarnings,
+      lastMonthEarnings,
+      totalBookings: bookings.length,
+      completedBookings: completedBookings.length,
+      cancelledBookings: cancelledBookings.length,
+    };
+  }, [bookings]);
+
+  // Calculate monthly data for chart
+  const monthlyData = useMemo(() => {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Maj', 'Jun', 'Jul', 'Avg', 'Sep', 'Okt', 'Nov', 'Dec'];
+    const data = months.map((month) => ({ month, earnings: 0, bookings: 0 }));
+
+    if (bookings) {
+      bookings.forEach((booking) => {
+        if (booking.status === 'CONFIRMED' || booking.status === 'COMPLETED') {
+          const monthIndex = new Date(booking.arrivalDate).getMonth();
+          const monthData = data[monthIndex];
+          if (monthData) {
+            monthData.earnings += booking.totalPrice;
+            monthData.bookings += 1;
+          }
+        }
+      });
+    }
+
+    return data;
+  }, [bookings]);
+
+  // Calculate accommodation stats
+  const accommodationStats = useMemo(() => {
+    if (!accommodations || !bookings) return [];
+
+    return accommodations.map((acc) => {
+      const accBookings = bookings.filter((b) => b.accommodation.id === acc.id);
+      const completedOrConfirmed = accBookings.filter(
+        (b) => b.status === 'CONFIRMED' || b.status === 'COMPLETED'
+      );
+      const earnings = completedOrConfirmed.reduce((sum, b) => sum + b.totalPrice, 0);
+
+      return {
+        id: acc.id,
+        name: acc.name,
+        earnings,
+        bookings: accBookings.length,
+        rating: acc.rating || 0,
+      };
+    });
+  }, [accommodations, bookings]);
+
+  const maxEarnings = Math.max(...monthlyData.map((d) => d.earnings), 1);
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-[400px] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
@@ -114,7 +167,7 @@ export default function OwnerStatisticsPage() {
             </div>
             <div>
               <p className="text-sm text-foreground-muted">{t('totalEarnings')}</p>
-              <p className="text-2xl font-bold">{formatPrice(mockStats.totalEarnings)}</p>
+              <p className="text-2xl font-bold">{formatPrice(stats.totalEarnings)}</p>
             </div>
           </CardContent>
         </Card>
@@ -126,9 +179,9 @@ export default function OwnerStatisticsPage() {
             </div>
             <div>
               <p className="text-sm text-foreground-muted">{t('thisMonth')}</p>
-              <p className="text-2xl font-bold">{formatPrice(mockStats.monthlyEarnings)}</p>
+              <p className="text-2xl font-bold">{formatPrice(stats.monthlyEarnings)}</p>
               <p className="text-xs text-foreground-muted">
-                Prošli mesec: {formatPrice(mockStats.lastMonthEarnings)}
+                Prošli mesec: {formatPrice(stats.lastMonthEarnings)}
               </p>
             </div>
           </CardContent>
@@ -140,8 +193,8 @@ export default function OwnerStatisticsPage() {
               <TrendingUp className="h-6 w-6 text-warning" />
             </div>
             <div>
-              <p className="text-sm text-foreground-muted">{t('occupancyRate')}</p>
-              <p className="text-2xl font-bold">{mockStats.occupancyRate}%</p>
+              <p className="text-sm text-foreground-muted">{t('totalBookings')}</p>
+              <p className="text-2xl font-bold">{stats.totalBookings}</p>
             </div>
           </CardContent>
         </Card>
@@ -152,9 +205,8 @@ export default function OwnerStatisticsPage() {
               <Star className="h-6 w-6 text-primary" />
             </div>
             <div>
-              <p className="text-sm text-foreground-muted">{t('averageRating')}</p>
-              <p className="text-2xl font-bold">{mockStats.averageRating}</p>
-              <p className="text-xs text-foreground-muted">{mockStats.totalReviews} ocena</p>
+              <p className="text-sm text-foreground-muted">{t('accommodations')}</p>
+              <p className="text-2xl font-bold">{accommodations?.length || 0}</p>
             </div>
           </CardContent>
         </Card>
@@ -168,7 +220,7 @@ export default function OwnerStatisticsPage() {
           </CardHeader>
           <CardContent>
             <div className="flex h-64 items-end gap-2">
-              {mockMonthlyData.map((data) => (
+              {monthlyData.map((data) => (
                 <div key={data.month} className="flex flex-1 flex-col items-center gap-2">
                   <div
                     className="w-full rounded-t bg-primary transition-all hover:bg-primary-hover"
@@ -190,29 +242,34 @@ export default function OwnerStatisticsPage() {
             <CardTitle>Performanse po smeštaju</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {mockAccommodationStats.map((acc) => (
-                <div
-                  key={acc.id}
-                  className="flex items-center justify-between rounded-lg border border-border p-4"
-                >
-                  <div>
-                    <p className="font-medium">{acc.name}</p>
-                    <div className="mt-1 flex items-center gap-3 text-sm text-foreground-muted">
-                      <span>{acc.bookings} rezervacija</span>
-                      <span className="flex items-center gap-1">
-                        <Star className="h-3 w-3 fill-primary text-primary" />
-                        {acc.rating}
-                      </span>
+            {accommodationStats.length === 0 ? (
+              <p className="text-center text-foreground-muted py-4">Nema podataka o smeštajima</p>
+            ) : (
+              <div className="space-y-4">
+                {accommodationStats.map((acc) => (
+                  <div
+                    key={acc.id}
+                    className="flex items-center justify-between rounded-lg border border-border p-4"
+                  >
+                    <div>
+                      <p className="font-medium">{acc.name}</p>
+                      <div className="mt-1 flex items-center gap-3 text-sm text-foreground-muted">
+                        <span>{acc.bookings} rezervacija</span>
+                        {acc.rating > 0 && (
+                          <span className="flex items-center gap-1">
+                            <Star className="h-3 w-3 fill-primary text-primary" />
+                            {acc.rating.toFixed(1)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-semibold text-primary">{formatPrice(acc.earnings)}</p>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p className="font-semibold text-primary">{formatPrice(acc.earnings)}</p>
-                    <p className="text-sm text-foreground-muted">{acc.occupancyRate}% zauzetost</p>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -225,27 +282,26 @@ export default function OwnerStatisticsPage() {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <span className="text-foreground-muted">Ukupno rezervacija</span>
-                <span className="font-semibold">{mockStats.totalBookings}</span>
+                <span className="font-semibold">{stats.totalBookings}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-foreground-muted">Završene</span>
-                <span className="font-semibold text-success">{mockStats.completedBookings}</span>
+                <span className="font-semibold text-success">{stats.completedBookings}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-foreground-muted">Otkazane</span>
-                <span className="font-semibold text-error">{mockStats.cancelledBookings}</span>
+                <span className="font-semibold text-error">{stats.cancelledBookings}</span>
               </div>
-              <div className="border-t border-border pt-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-foreground-muted">Stopa završetka</span>
-                  <span className="font-semibold">
-                    {Math.round(
-                      (mockStats.completedBookings / mockStats.totalBookings) * 100
-                    )}
-                    %
-                  </span>
+              {stats.totalBookings > 0 && (
+                <div className="border-t border-border pt-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-foreground-muted">Stopa završetka</span>
+                    <span className="font-semibold">
+                      {Math.round((stats.completedBookings / stats.totalBookings) * 100)}%
+                    </span>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           </CardContent>
         </Card>

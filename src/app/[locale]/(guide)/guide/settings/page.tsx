@@ -1,8 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
-import { useSession } from 'next-auth/react';
 import {
   Card,
   CardHeader,
@@ -12,19 +11,29 @@ import {
   Input,
   Label,
 } from '@/components/ui';
-import { User, Phone, Mail, MapPin, Save, Bell } from 'lucide-react';
+import { User, Phone, Mail, MapPin, Save, Bell, Loader2 } from 'lucide-react';
+import { useApi } from '@/hooks';
+
+interface UserProfile {
+  id: string;
+  name: string;
+  email: string;
+  phone: string | null;
+}
 
 export default function GuideSettingsPage() {
   const t = useTranslations('guideDashboard');
-  const { data: session } = useSession();
-  const [isLoading, setIsLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Fetch user profile
+  const { data: profile, isLoading, refetch } = useApi<UserProfile>('/api/user/profile');
 
   // Form state
   const [formData, setFormData] = useState({
-    name: session?.user?.name || '',
-    email: session?.user?.email || '',
-    phone: '+381 60 123 4567',
-    defaultMeetingPoint: 'Benzinska pumpa na ulazu u Polihrono',
+    name: '',
+    email: '',
+    phone: '',
+    defaultMeetingPoint: '',
     notifications: {
       newClient: true,
       clientDeparted: true,
@@ -32,6 +41,18 @@ export default function GuideSettingsPage() {
       clientArrived: true,
     },
   });
+
+  // Initialize form with profile data
+  useEffect(() => {
+    if (profile) {
+      setFormData((prev) => ({
+        ...prev,
+        name: profile.name || '',
+        email: profile.email || '',
+        phone: profile.phone || '',
+      }));
+    }
+  }, [profile]);
 
   const handleInputChange = (field: string, value: string) => {
     setFormData((prev) => ({
@@ -51,18 +72,32 @@ export default function GuideSettingsPage() {
   };
 
   const handleSave = async () => {
-    setIsLoading(true);
+    setIsSaving(true);
 
     try {
-      // TODO: API call to save settings
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      console.log('Saved settings:', formData);
+      await fetch('/api/user/profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: formData.name,
+          phone: formData.phone,
+        }),
+      });
+      refetch();
     } catch (error) {
       console.error('Error saving settings:', error);
     } finally {
-      setIsLoading(false);
+      setIsSaving(false);
     }
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-[400px] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 lg:px-8">
@@ -209,9 +244,9 @@ export default function GuideSettingsPage() {
 
         {/* Save Button */}
         <div className="flex justify-end">
-          <Button onClick={handleSave} disabled={isLoading} className="gap-2">
+          <Button onClick={handleSave} disabled={isSaving} className="gap-2">
             <Save className="h-4 w-4" />
-            {isLoading ? 'Čuvanje...' : 'Sačuvaj promene'}
+            {isSaving ? 'Čuvanje...' : 'Sačuvaj promene'}
           </Button>
         </div>
       </div>
