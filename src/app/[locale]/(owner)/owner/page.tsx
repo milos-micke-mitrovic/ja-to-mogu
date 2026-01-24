@@ -11,77 +11,64 @@ import {
   ArrowRight,
   MapPin,
   User,
+  Loader2,
 } from 'lucide-react';
 import { Link } from '@/i18n/routing';
 import { formatPrice, formatDate } from '@/lib/utils';
 import { cn } from '@/lib/utils';
+import { useApi, useOwnerAccommodations } from '@/hooks';
 
-// Mock data - will be replaced with API calls
-const mockStats = {
-  totalAccommodations: 3,
-  activeBookings: 2,
-  pendingArrivals: 1,
-  monthlyEarnings: 45000,
-};
-
-const mockBookings = [
-  {
-    id: '1',
-    guestName: 'Marko Petrović',
-    accommodationName: 'Apartman Sunce',
-    checkIn: '2024-07-20',
-    checkOut: '2024-07-27',
-    status: 'CONFIRMED',
-    totalAmount: 31500,
-  },
-  {
-    id: '2',
-    guestName: 'Ana Jovanović',
-    accommodationName: 'Vila Panorama',
-    checkIn: '2024-07-22',
-    checkOut: '2024-07-29',
-    status: 'PENDING',
-    totalAmount: 56000,
-  },
-];
-
-const mockAccommodations = [
-  {
-    id: '1',
-    name: 'Apartman Sunce',
-    type: 'Apartman',
-    location: 'Polihrono',
-    status: 'AVAILABLE',
-    pricePerNight: 4500,
-  },
-  {
-    id: '2',
-    name: 'Vila Panorama',
-    type: 'Vila',
-    location: 'Polihrono',
-    status: 'OCCUPIED',
-    pricePerNight: 8000,
-  },
-  {
-    id: '3',
-    name: 'Studio More',
-    type: 'Studio',
-    location: 'Polihrono',
-    status: 'AVAILABLE',
-    pricePerNight: 2500,
-  },
-];
+interface OwnerBooking {
+  id: string;
+  guestName: string;
+  guestEmail: string;
+  guestPhone: string;
+  arrivalDate: string;
+  duration: string;
+  status: string;
+  totalPrice: number;
+  journeyStatus: string;
+  accommodation: {
+    id: string;
+    name: string;
+    destination: string;
+    address: string;
+  };
+  user: {
+    name: string;
+    email: string;
+    phone: string;
+  };
+}
 
 export default function OwnerDashboardPage() {
   const t = useTranslations('ownerDashboard');
+
+  // Fetch owner's accommodations
+  const { data: accommodations, isLoading: loadingAccommodations } = useOwnerAccommodations();
+
+  // Fetch owner's bookings
+  const { data: bookings, isLoading: loadingBookings } = useApi<OwnerBooking[]>('/api/owner/bookings');
+
+  // Calculate stats
+  const stats = {
+    totalAccommodations: accommodations?.length || 0,
+    activeBookings: bookings?.filter((b) => b.status === 'CONFIRMED' || b.status === 'PENDING').length || 0,
+    pendingArrivals: bookings?.filter((b) => b.status === 'CONFIRMED' && b.journeyStatus === 'NOT_STARTED').length || 0,
+    monthlyEarnings: bookings
+      ?.filter((b) => b.status === 'CONFIRMED' || b.status === 'COMPLETED')
+      .reduce((sum, b) => sum + b.totalPrice, 0) || 0,
+  };
+
+  const recentBookings = bookings?.slice(0, 5) || [];
 
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'AVAILABLE':
         return 'bg-success/10 text-success';
-      case 'OCCUPIED':
+      case 'BOOKED':
         return 'bg-primary/10 text-primary';
-      case 'MAINTENANCE':
+      case 'UNAVAILABLE':
         return 'bg-warning/10 text-warning';
       default:
         return 'bg-muted text-foreground-muted';
@@ -92,9 +79,9 @@ export default function OwnerDashboardPage() {
     switch (status) {
       case 'AVAILABLE':
         return t('available');
-      case 'OCCUPIED':
+      case 'BOOKED':
         return t('occupied');
-      case 'MAINTENANCE':
+      case 'UNAVAILABLE':
         return t('maintenance');
       default:
         return status;
@@ -107,8 +94,6 @@ export default function OwnerDashboardPage() {
         return 'bg-warning/10 text-warning';
       case 'CONFIRMED':
         return 'bg-success/10 text-success';
-      case 'CHECKED_IN':
-        return 'bg-primary/10 text-primary';
       case 'COMPLETED':
         return 'bg-muted text-foreground-muted';
       case 'CANCELLED':
@@ -124,8 +109,6 @@ export default function OwnerDashboardPage() {
         return t('pending');
       case 'CONFIRMED':
         return t('confirmed');
-      case 'CHECKED_IN':
-        return t('checkedIn');
       case 'COMPLETED':
         return t('completed');
       case 'CANCELLED':
@@ -134,6 +117,16 @@ export default function OwnerDashboardPage() {
         return status;
     }
   };
+
+  const isLoading = loadingAccommodations || loadingBookings;
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-[400px] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
@@ -152,7 +145,7 @@ export default function OwnerDashboardPage() {
             </div>
             <div>
               <p className="text-sm text-foreground-muted">{t('totalAccommodations')}</p>
-              <p className="text-2xl font-bold">{mockStats.totalAccommodations}</p>
+              <p className="text-2xl font-bold">{stats.totalAccommodations}</p>
             </div>
           </CardContent>
         </Card>
@@ -164,7 +157,7 @@ export default function OwnerDashboardPage() {
             </div>
             <div>
               <p className="text-sm text-foreground-muted">{t('activeBookings')}</p>
-              <p className="text-2xl font-bold">{mockStats.activeBookings}</p>
+              <p className="text-2xl font-bold">{stats.activeBookings}</p>
             </div>
           </CardContent>
         </Card>
@@ -176,7 +169,7 @@ export default function OwnerDashboardPage() {
             </div>
             <div>
               <p className="text-sm text-foreground-muted">{t('pendingArrivals')}</p>
-              <p className="text-2xl font-bold">{mockStats.pendingArrivals}</p>
+              <p className="text-2xl font-bold">{stats.pendingArrivals}</p>
             </div>
           </CardContent>
         </Card>
@@ -188,7 +181,7 @@ export default function OwnerDashboardPage() {
             </div>
             <div>
               <p className="text-sm text-foreground-muted">{t('monthlyEarnings')}</p>
-              <p className="text-2xl font-bold">{formatPrice(mockStats.monthlyEarnings)}</p>
+              <p className="text-2xl font-bold">{formatPrice(stats.monthlyEarnings)}</p>
             </div>
           </CardContent>
         </Card>
@@ -208,7 +201,7 @@ export default function OwnerDashboardPage() {
               </Link>
             </CardHeader>
             <CardContent>
-              {mockBookings.length === 0 ? (
+              {recentBookings.length === 0 ? (
                 <div className="py-8 text-center">
                   <Calendar className="mx-auto h-12 w-12 text-foreground-muted" />
                   <p className="mt-4 text-foreground-muted">{t('noBookings')}</p>
@@ -216,7 +209,7 @@ export default function OwnerDashboardPage() {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {mockBookings.map((booking) => (
+                  {recentBookings.map((booking) => (
                     <div
                       key={booking.id}
                       className="flex flex-col gap-4 rounded-lg border border-border p-4 sm:flex-row sm:items-center sm:justify-between"
@@ -228,10 +221,10 @@ export default function OwnerDashboardPage() {
                         <div>
                           <p className="font-medium">{booking.guestName}</p>
                           <p className="text-sm text-foreground-muted">
-                            {booking.accommodationName}
+                            {booking.accommodation.name}
                           </p>
                           <p className="mt-1 text-sm text-foreground-muted">
-                            {formatDate(booking.checkIn)} - {formatDate(booking.checkOut)}
+                            {formatDate(booking.arrivalDate)}
                           </p>
                         </div>
                       </div>
@@ -245,7 +238,7 @@ export default function OwnerDashboardPage() {
                           {getBookingStatusLabel(booking.status)}
                         </span>
                         <span className="font-semibold text-primary">
-                          {formatPrice(booking.totalAmount)}
+                          {formatPrice(booking.totalPrice)}
                         </span>
                       </div>
                     </div>
@@ -296,14 +289,14 @@ export default function OwnerDashboardPage() {
               </Link>
             </CardHeader>
             <CardContent>
-              {mockAccommodations.length === 0 ? (
+              {!accommodations || accommodations.length === 0 ? (
                 <div className="py-4 text-center">
                   <Building2 className="mx-auto h-8 w-8 text-foreground-muted" />
                   <p className="mt-2 text-sm text-foreground-muted">{t('noAccommodations')}</p>
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {mockAccommodations.map((accommodation) => (
+                  {accommodations.slice(0, 5).map((accommodation) => (
                     <div
                       key={accommodation.id}
                       className="flex items-center justify-between rounded-lg border border-border p-3"
@@ -312,7 +305,7 @@ export default function OwnerDashboardPage() {
                         <p className="font-medium">{accommodation.name}</p>
                         <p className="flex items-center gap-1 text-xs text-foreground-muted">
                           <MapPin className="h-3 w-3" />
-                          {accommodation.location}
+                          {accommodation.address}
                         </p>
                       </div>
                       <span

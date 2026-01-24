@@ -11,49 +11,78 @@ import {
   DollarSign,
   Clock,
   CheckCircle,
+  Loader2,
 } from 'lucide-react';
-import { formatPrice } from '@/lib/utils';
+import { formatPrice, formatDate } from '@/lib/utils';
+import { useApi } from '@/hooks';
 
-// Mock statistics
-const mockStats = {
-  totalAccommodations: 45,
-  totalOwners: 28,
-  totalGuides: 8,
-  totalClients: 156,
-  activeBookings: 23,
-  pendingBookings: 5,
-  completedBookings: 412,
-  monthlyRevenue: 890000,
-  todayArrivals: 4,
-  todayDepartures: 3,
-};
+interface UserStats {
+  total: number;
+  owners: number;
+  guides: number;
+  clients: number;
+}
 
-const mockRecentBookings = [
-  {
-    id: '1',
-    clientName: 'Marko Petrović',
-    accommodation: 'Apartman Sunce',
-    status: 'CONFIRMED',
-    createdAt: '2024-07-20 14:30',
-  },
-  {
-    id: '2',
-    clientName: 'Ana Jovanović',
-    accommodation: 'Vila Panorama',
-    status: 'PENDING',
-    createdAt: '2024-07-20 12:15',
-  },
-  {
-    id: '3',
-    clientName: 'Nikola Nikolić',
-    accommodation: 'Studio More',
-    status: 'CONFIRMED',
-    createdAt: '2024-07-19 18:45',
-  },
-];
+interface BookingStats {
+  active: number;
+  pending: number;
+  completed: number;
+  todayArrivals: number;
+  monthlyRevenue: number;
+}
+
+interface AdminBooking {
+  id: string;
+  guestName: string;
+  status: string;
+  createdAt: string;
+  accommodation: {
+    name: string;
+  };
+}
+
+interface AccommodationStats {
+  total: number;
+}
 
 export default function AdminDashboardPage() {
   const t = useTranslations('admin');
+
+  // Fetch admin stats from API
+  const { data: users, isLoading: loadingUsers } = useApi<{ users: { role: string }[]; total: number }>('/api/admin/users?limit=1000');
+  const { data: accommodations, isLoading: loadingAccommodations } = useApi<{ accommodations: unknown[]; total: number }>('/api/admin/accommodations?limit=1');
+  const { data: bookings, isLoading: loadingBookings } = useApi<{ bookings: AdminBooking[]; total: number }>('/api/admin/bookings?limit=5');
+
+  // Calculate stats from fetched data
+  const userStats: UserStats = {
+    total: users?.total || 0,
+    owners: users?.users?.filter((u) => u.role === 'OWNER').length || 0,
+    guides: users?.users?.filter((u) => u.role === 'GUIDE').length || 0,
+    clients: users?.users?.filter((u) => u.role === 'CLIENT').length || 0,
+  };
+
+  const bookingStats: BookingStats = {
+    active: bookings?.bookings?.filter((b) => b.status === 'CONFIRMED').length || 0,
+    pending: bookings?.bookings?.filter((b) => b.status === 'PENDING').length || 0,
+    completed: bookings?.bookings?.filter((b) => b.status === 'COMPLETED').length || 0,
+    todayArrivals: 0, // Would need specific API call
+    monthlyRevenue: 0, // Would need specific API call
+  };
+
+  const accommodationStats: AccommodationStats = {
+    total: accommodations?.total || 0,
+  };
+
+  const recentBookings = bookings?.bookings || [];
+  const isLoading = loadingUsers || loadingAccommodations || loadingBookings;
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-[400px] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 lg:p-8">
@@ -72,7 +101,7 @@ export default function AdminDashboardPage() {
             </div>
             <div>
               <p className="text-sm text-foreground-muted">{t('accommodations')}</p>
-              <p className="text-2xl font-bold">{mockStats.totalAccommodations}</p>
+              <p className="text-2xl font-bold">{accommodationStats.total}</p>
             </div>
           </CardContent>
         </Card>
@@ -84,7 +113,7 @@ export default function AdminDashboardPage() {
             </div>
             <div>
               <p className="text-sm text-foreground-muted">{t('owners')}</p>
-              <p className="text-2xl font-bold">{mockStats.totalOwners}</p>
+              <p className="text-2xl font-bold">{userStats.owners}</p>
             </div>
           </CardContent>
         </Card>
@@ -96,7 +125,7 @@ export default function AdminDashboardPage() {
             </div>
             <div>
               <p className="text-sm text-foreground-muted">{t('guides')}</p>
-              <p className="text-2xl font-bold">{mockStats.totalGuides}</p>
+              <p className="text-2xl font-bold">{userStats.guides}</p>
             </div>
           </CardContent>
         </Card>
@@ -108,7 +137,7 @@ export default function AdminDashboardPage() {
             </div>
             <div>
               <p className="text-sm text-foreground-muted">{t('bookings')}</p>
-              <p className="text-2xl font-bold">{mockStats.activeBookings}</p>
+              <p className="text-2xl font-bold">{bookingStats.active}</p>
             </div>
           </CardContent>
         </Card>
@@ -122,7 +151,7 @@ export default function AdminDashboardPage() {
               <p className="text-sm text-foreground-muted">Ukupno klijenata</p>
               <Users className="h-4 w-4 text-foreground-muted" />
             </div>
-            <p className="mt-2 text-2xl font-bold">{mockStats.totalClients}</p>
+            <p className="mt-2 text-2xl font-bold">{userStats.clients}</p>
           </CardContent>
         </Card>
 
@@ -132,7 +161,7 @@ export default function AdminDashboardPage() {
               <p className="text-sm text-foreground-muted">Na čekanju</p>
               <Clock className="h-4 w-4 text-warning" />
             </div>
-            <p className="mt-2 text-2xl font-bold text-warning">{mockStats.pendingBookings}</p>
+            <p className="mt-2 text-2xl font-bold text-warning">{bookingStats.pending}</p>
           </CardContent>
         </Card>
 
@@ -142,7 +171,7 @@ export default function AdminDashboardPage() {
               <p className="text-sm text-foreground-muted">Završeno ukupno</p>
               <CheckCircle className="h-4 w-4 text-success" />
             </div>
-            <p className="mt-2 text-2xl font-bold text-success">{mockStats.completedBookings}</p>
+            <p className="mt-2 text-2xl font-bold text-success">{bookingStats.completed}</p>
           </CardContent>
         </Card>
 
@@ -153,7 +182,7 @@ export default function AdminDashboardPage() {
               <DollarSign className="h-4 w-4 text-primary" />
             </div>
             <p className="mt-2 text-2xl font-bold text-primary">
-              {formatPrice(mockStats.monthlyRevenue)}
+              {formatPrice(bookingStats.monthlyRevenue)}
             </p>
           </CardContent>
         </Card>
@@ -174,7 +203,7 @@ export default function AdminDashboardPage() {
                   </div>
                   <div>
                     <p className="text-sm text-foreground-muted">Dolasci danas</p>
-                    <p className="text-xl font-bold">{mockStats.todayArrivals}</p>
+                    <p className="text-xl font-bold">{bookingStats.todayArrivals}</p>
                   </div>
                 </div>
               </div>
@@ -184,8 +213,8 @@ export default function AdminDashboardPage() {
                     <TrendingUp className="h-5 w-5 rotate-180 text-primary" />
                   </div>
                   <div>
-                    <p className="text-sm text-foreground-muted">Odlasci danas</p>
-                    <p className="text-xl font-bold">{mockStats.todayDepartures}</p>
+                    <p className="text-sm text-foreground-muted">Ukupno korisnika</p>
+                    <p className="text-xl font-bold">{userStats.total}</p>
                   </div>
                 </div>
               </div>
@@ -199,31 +228,38 @@ export default function AdminDashboardPage() {
             <CardTitle>Poslednje rezervacije</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
-              {mockRecentBookings.map((booking) => (
-                <div
-                  key={booking.id}
-                  className="flex items-center justify-between rounded-lg border border-border p-3"
-                >
-                  <div>
-                    <p className="font-medium">{booking.clientName}</p>
-                    <p className="text-sm text-foreground-muted">{booking.accommodation}</p>
+            {recentBookings.length === 0 ? (
+              <div className="py-8 text-center">
+                <Calendar className="mx-auto h-12 w-12 text-foreground-muted" />
+                <p className="mt-4 text-foreground-muted">Nema rezervacija</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {recentBookings.map((booking) => (
+                  <div
+                    key={booking.id}
+                    className="flex items-center justify-between rounded-lg border border-border p-3"
+                  >
+                    <div>
+                      <p className="font-medium">{booking.guestName}</p>
+                      <p className="text-sm text-foreground-muted">{booking.accommodation?.name}</p>
+                    </div>
+                    <div className="text-right">
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                          booking.status === 'CONFIRMED'
+                            ? 'bg-success/10 text-success'
+                            : 'bg-warning/10 text-warning'
+                        }`}
+                      >
+                        {booking.status === 'CONFIRMED' ? 'Potvrđeno' : 'Na čekanju'}
+                      </span>
+                      <p className="mt-1 text-xs text-foreground-muted">{formatDate(booking.createdAt)}</p>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                        booking.status === 'CONFIRMED'
-                          ? 'bg-success/10 text-success'
-                          : 'bg-warning/10 text-warning'
-                      }`}
-                    >
-                      {booking.status === 'CONFIRMED' ? 'Potvrđeno' : 'Na čekanju'}
-                    </span>
-                    <p className="mt-1 text-xs text-foreground-muted">{booking.createdAt}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

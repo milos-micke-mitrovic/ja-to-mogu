@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState, useMemo } from 'react';
 import { useTranslations } from 'next-intl';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
@@ -29,84 +29,13 @@ import {
   Filter,
   ChevronLeft,
   Star,
+  Loader2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatPrice } from '@/lib/utils';
 import { ALL_DESTINATIONS } from '@/lib/constants';
 import { Link } from '@/i18n/routing';
-
-// Mock accommodation data - will be replaced with API call
-const mockAccommodations = [
-  {
-    id: '1',
-    name: 'Apartman Sunce',
-    type: 'Apartman',
-    destination: 'POLIHRONO',
-    address: 'Polihrono, Halkidiki',
-    latitude: 39.9589,
-    longitude: 23.7541,
-    beds: 4,
-    rooms: 2,
-    hasParking: true,
-    hasAC: true,
-    hasWifi: true,
-    hasKitchen: true,
-    hasPool: false,
-    hasSeaView: true,
-    distanceToBeach: 150,
-    images: ['/placeholder-accommodation.jpg'],
-    pricePerNight: 4500,
-    rating: 4.5,
-    reviewCount: 12,
-    status: 'AVAILABLE',
-  },
-  {
-    id: '2',
-    name: 'Vila Panorama',
-    type: 'Vila',
-    destination: 'POLIHRONO',
-    address: 'Polihrono, Halkidiki',
-    latitude: 39.9601,
-    longitude: 23.7555,
-    beds: 6,
-    rooms: 3,
-    hasParking: true,
-    hasAC: true,
-    hasWifi: true,
-    hasKitchen: true,
-    hasPool: true,
-    hasSeaView: true,
-    distanceToBeach: 300,
-    images: ['/placeholder-accommodation.jpg'],
-    pricePerNight: 8000,
-    rating: 4.8,
-    reviewCount: 8,
-    status: 'AVAILABLE',
-  },
-  {
-    id: '3',
-    name: 'Studio More',
-    type: 'Studio',
-    destination: 'POLIHRONO',
-    address: 'Polihrono, Halkidiki',
-    latitude: 39.9575,
-    longitude: 23.7530,
-    beds: 2,
-    rooms: 1,
-    hasParking: false,
-    hasAC: true,
-    hasWifi: true,
-    hasKitchen: false,
-    hasPool: false,
-    hasSeaView: false,
-    distanceToBeach: 50,
-    images: ['/placeholder-accommodation.jpg'],
-    pricePerNight: 2500,
-    rating: 4.2,
-    reviewCount: 25,
-    status: 'AVAILABLE',
-  },
-];
+import { useAccommodations, type Accommodation } from '@/hooks';
 
 interface FilterState {
   minPrice?: number;
@@ -120,62 +49,38 @@ interface FilterState {
   hasSeaView?: boolean;
 }
 
-export default function CatalogPage() {
+function CatalogContent() {
   const t = useTranslations('catalog');
   const router = useRouter();
   const searchParams = useSearchParams();
-  const destination = searchParams.get('destination');
+  const destination = searchParams.get('destination') || undefined;
 
   const [filters, setFilters] = useState<FilterState>({});
   const [showFilters, setShowFilters] = useState(false);
 
+  // Build API filter params
+  const apiFilters = useMemo(() => ({
+    destination,
+    minPrice: filters.minPrice,
+    maxPrice: filters.maxPrice,
+    minBeds: filters.minBeds,
+    hasParking: filters.hasParking,
+    hasAC: filters.hasAC,
+    hasWifi: filters.hasWifi,
+    hasKitchen: filters.hasKitchen,
+    hasPool: filters.hasPool,
+    hasSeaView: filters.hasSeaView,
+  }), [destination, filters]);
+
+  // Fetch accommodations from API
+  const { data: accommodations, isLoading, error } = useAccommodations(apiFilters);
+
   const destinationLabel =
     ALL_DESTINATIONS.find((d) => d.value === destination)?.label || destination || '';
 
-  // Filter accommodations
-  const filterAccommodations = () => {
-    let filtered = mockAccommodations;
-
-    if (destination) {
-      filtered = filtered.filter((a) => a.destination === destination);
-    }
-
-    if (filters.minPrice !== undefined) {
-      filtered = filtered.filter((a) => a.pricePerNight >= filters.minPrice!);
-    }
-    if (filters.maxPrice !== undefined) {
-      filtered = filtered.filter((a) => a.pricePerNight <= filters.maxPrice!);
-    }
-    if (filters.minBeds !== undefined) {
-      filtered = filtered.filter((a) => a.beds >= filters.minBeds!);
-    }
-    if (filters.hasParking) {
-      filtered = filtered.filter((a) => a.hasParking);
-    }
-    if (filters.hasAC) {
-      filtered = filtered.filter((a) => a.hasAC);
-    }
-    if (filters.hasWifi) {
-      filtered = filtered.filter((a) => a.hasWifi);
-    }
-    if (filters.hasKitchen) {
-      filtered = filtered.filter((a) => a.hasKitchen);
-    }
-    if (filters.hasPool) {
-      filtered = filtered.filter((a) => a.hasPool);
-    }
-    if (filters.hasSeaView) {
-      filtered = filtered.filter((a) => a.hasSeaView);
-    }
-
-    return filtered;
-  };
-
-  const accommodations = filterAccommodations();
-
   const handleSelectAccommodation = (accommodationId: string) => {
     sessionStorage.setItem('selectedAccommodation', accommodationId);
-    router.push(`/booking-confirmation?id=${accommodationId}`);
+    router.push(`/booking-confirmation?id=${accommodationId}` as Parameters<typeof router.push>[0]);
   };
 
   const clearFilters = () => {
@@ -327,7 +232,17 @@ export default function CatalogPage() {
 
         {/* Accommodations Grid */}
         <div className="flex-1">
-          {accommodations.length === 0 ? (
+          {isLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : error ? (
+            <Card className="p-12 text-center">
+              <Home className="mx-auto h-12 w-12 text-error" />
+              <h3 className="mt-4 text-lg font-medium text-error">Greška pri učitavanju</h3>
+              <p className="mt-2 text-foreground-muted">{error}</p>
+            </Card>
+          ) : !accommodations || accommodations.length === 0 ? (
             <Card className="p-12 text-center">
               <Home className="mx-auto h-12 w-12 text-foreground-muted" />
               <h3 className="mt-4 text-lg font-medium">{t('noAccommodations')}</h3>
@@ -338,16 +253,25 @@ export default function CatalogPage() {
             </Card>
           ) : (
             <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
-              {accommodations.map((accommodation) => (
+              {accommodations.map((accommodation: Accommodation) => (
                 <Card
                   key={accommodation.id}
                   className="group overflow-hidden transition-shadow hover:shadow-lg"
                 >
                   {/* Image */}
                   <div className="relative aspect-[4/3] bg-muted">
-                    <div className="flex h-full items-center justify-center">
-                      <Home className="h-12 w-12 text-foreground-muted" />
-                    </div>
+                    {accommodation.images && accommodation.images.length > 0 ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={accommodation.images[0]}
+                        alt={accommodation.name}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-full items-center justify-center">
+                        <Home className="h-12 w-12 text-foreground-muted" />
+                      </div>
+                    )}
                     {/* Status Badge */}
                     <div className="absolute left-3 top-3 rounded-full bg-available px-3 py-1 text-xs font-medium text-white">
                       {t('available')}
@@ -356,7 +280,7 @@ export default function CatalogPage() {
                     {accommodation.rating && (
                       <div className="absolute right-3 top-3 flex items-center gap-1 rounded-full bg-white/90 px-2 py-1 text-xs font-medium">
                         <Star className="h-3 w-3 fill-primary text-primary" />
-                        {accommodation.rating}
+                        {accommodation.rating.toFixed(1)}
                       </div>
                     )}
                   </div>
@@ -415,9 +339,13 @@ export default function CatalogPage() {
                     <div className="flex items-center justify-between border-t pt-4">
                       <div>
                         <span className="text-lg font-bold text-primary">
-                          {formatPrice(accommodation.pricePerNight)}
+                          {accommodation.minPricePerNight
+                            ? formatPrice(accommodation.minPricePerNight)
+                            : 'Po dogovoru'}
                         </span>
-                        <span className="text-sm text-foreground-muted"> / {t('perNight')}</span>
+                        {accommodation.minPricePerNight && (
+                          <span className="text-sm text-foreground-muted"> / {t('perNight')}</span>
+                        )}
                       </div>
                       <Button
                         size="sm"
@@ -434,5 +362,21 @@ export default function CatalogPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+function CatalogFallback() {
+  return (
+    <div className="flex min-h-[400px] items-center justify-center">
+      <Loader2 className="h-8 w-8 animate-spin text-primary" />
+    </div>
+  );
+}
+
+export default function CatalogPage() {
+  return (
+    <Suspense fallback={<CatalogFallback />}>
+      <CatalogContent />
+    </Suspense>
   );
 }

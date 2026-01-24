@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useTranslations } from 'next-intl';
 import {
   Card,
@@ -27,86 +27,39 @@ import {
   Wind,
   ChefHat,
   Waves,
+  Loader2,
 } from 'lucide-react';
 import { Link } from '@/i18n/routing';
 import { formatPrice } from '@/lib/utils';
 import { cn } from '@/lib/utils';
-
-// Mock data
-const mockAccommodations = [
-  {
-    id: '1',
-    name: 'Apartman Sunce',
-    type: 'Apartman',
-    location: 'Polihrono',
-    address: 'Polihrono, Halkidiki',
-    beds: 4,
-    rooms: 2,
-    status: 'AVAILABLE',
-    pricePerNight: 4500,
-    hasParking: true,
-    hasAC: true,
-    hasWifi: true,
-    hasKitchen: true,
-    hasPool: false,
-    distanceToBeach: 150,
-  },
-  {
-    id: '2',
-    name: 'Vila Panorama',
-    type: 'Vila',
-    location: 'Polihrono',
-    address: 'Polihrono, Halkidiki',
-    beds: 6,
-    rooms: 3,
-    status: 'OCCUPIED',
-    pricePerNight: 8000,
-    hasParking: true,
-    hasAC: true,
-    hasWifi: true,
-    hasKitchen: true,
-    hasPool: true,
-    distanceToBeach: 300,
-  },
-  {
-    id: '3',
-    name: 'Studio More',
-    type: 'Studio',
-    location: 'Polihrono',
-    address: 'Polihrono, Halkidiki',
-    beds: 2,
-    rooms: 1,
-    status: 'AVAILABLE',
-    pricePerNight: 2500,
-    hasParking: false,
-    hasAC: true,
-    hasWifi: true,
-    hasKitchen: false,
-    hasPool: false,
-    distanceToBeach: 50,
-  },
-];
+import { useOwnerAccommodations } from '@/hooks';
 
 export default function OwnerAccommodationsPage() {
   const t = useTranslations('ownerDashboard');
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
 
-  const filteredAccommodations = mockAccommodations.filter((acc) => {
-    const matchesSearch =
-      acc.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      acc.location.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || acc.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  // Fetch accommodations from API
+  const { data: accommodations, isLoading, refetch } = useOwnerAccommodations();
+
+  const filteredAccommodations = useMemo(() => {
+    if (!accommodations) return [];
+    return accommodations.filter((acc) => {
+      const matchesSearch =
+        acc.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        acc.destination.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesStatus = statusFilter === 'all' || acc.status === statusFilter;
+      return matchesSearch && matchesStatus;
+    });
+  }, [accommodations, searchQuery, statusFilter]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'AVAILABLE':
         return 'bg-success/10 text-success';
-      case 'OCCUPIED':
+      case 'BOOKED':
         return 'bg-primary/10 text-primary';
-      case 'MAINTENANCE':
+      case 'UNAVAILABLE':
         return 'bg-warning/10 text-warning';
       default:
         return 'bg-muted text-foreground-muted';
@@ -117,19 +70,36 @@ export default function OwnerAccommodationsPage() {
     switch (status) {
       case 'AVAILABLE':
         return t('available');
-      case 'OCCUPIED':
+      case 'BOOKED':
         return t('occupied');
-      case 'MAINTENANCE':
+      case 'UNAVAILABLE':
         return t('maintenance');
       default:
         return status;
     }
   };
 
-  const handleToggleStatus = (accommodationId: string, currentStatus: string) => {
-    // TODO: API call to toggle status
-    console.log('Toggle status for:', accommodationId, 'Current:', currentStatus);
+  const handleToggleStatus = async (accommodationId: string, currentStatus: string) => {
+    const newStatus = currentStatus === 'AVAILABLE' ? 'BOOKED' : 'AVAILABLE';
+    try {
+      await fetch(`/api/owner/accommodations/${accommodationId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      refetch();
+    } catch (error) {
+      console.error('Error updating status:', error);
+    }
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-[400px] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
@@ -169,8 +139,8 @@ export default function OwnerAccommodationsPage() {
               <SelectContent>
                 <SelectItem value="all">Svi statusi</SelectItem>
                 <SelectItem value="AVAILABLE">{t('available')}</SelectItem>
-                <SelectItem value="OCCUPIED">{t('occupied')}</SelectItem>
-                <SelectItem value="MAINTENANCE">{t('maintenance')}</SelectItem>
+                <SelectItem value="BOOKED">{t('occupied')}</SelectItem>
+                <SelectItem value="UNAVAILABLE">{t('maintenance')}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -279,9 +249,13 @@ export default function OwnerAccommodationsPage() {
                 <div className="flex items-center justify-between border-t pt-4">
                   <div>
                     <span className="text-lg font-bold text-primary">
-                      {formatPrice(accommodation.pricePerNight)}
+                      {accommodation.minPricePerNight
+                        ? formatPrice(accommodation.minPricePerNight)
+                        : 'Po dogovoru'}
                     </span>
-                    <span className="text-sm text-foreground-muted"> / noć</span>
+                    {accommodation.minPricePerNight && (
+                      <span className="text-sm text-foreground-muted"> / noć</span>
+                    )}
                   </div>
                   <div className="flex gap-2">
                     <Button

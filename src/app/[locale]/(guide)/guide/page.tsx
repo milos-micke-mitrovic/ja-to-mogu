@@ -13,60 +13,59 @@ import {
   Car,
   Flag,
   Check,
+  Loader2,
 } from 'lucide-react';
 import { Link } from '@/i18n/routing';
 import { getWhatsAppLink, getViberLink, getGoogleMapsUrl } from '@/lib/utils';
 import { cn } from '@/lib/utils';
+import { useApi } from '@/hooks';
 
-// Mock data
-const mockStats = {
-  todaysClients: 2,
-  upcomingClients: 3,
-  activeClients: 1,
-  completedToday: 1,
-};
-
-const mockTodaysClients = [
-  {
-    id: '1',
-    name: 'Marko Petrović',
-    phone: '+381 60 123 4567',
-    hasViber: true,
-    hasWhatsApp: true,
-    accommodation: {
-      name: 'Apartman Sunce',
-      address: 'Polihrono, Halkidiki',
-      latitude: 39.9589,
-      longitude: 23.7541,
-    },
-    arrivalTime: '18:00',
-    journeyStatus: 'IN_GREECE',
-    meetingPoint: 'Benzinska pumpa na ulazu u Polihrono',
-    meetingLatitude: 39.9601,
-    meetingLongitude: 23.7555,
-  },
-  {
-    id: '2',
-    name: 'Ana Jovanović',
-    phone: '+381 63 987 6543',
-    hasViber: true,
-    hasWhatsApp: false,
-    accommodation: {
-      name: 'Vila Panorama',
-      address: 'Polihrono, Halkidiki',
-      latitude: 39.9601,
-      longitude: 23.7555,
-    },
-    arrivalTime: '20:00',
-    journeyStatus: 'DEPARTED',
-    meetingPoint: 'Benzinska pumpa na ulazu u Polihrono',
-    meetingLatitude: 39.9601,
-    meetingLongitude: 23.7555,
-  },
-];
+interface GuideClient {
+  id: string;
+  guestName: string;
+  guestPhone: string;
+  guestEmail: string;
+  arrivalDate: string;
+  arrivalTime: string | null;
+  journeyStatus: string;
+  status: string;
+  guestInfo: {
+    name: string;
+    phone: string;
+    email: string;
+    hasViber: boolean;
+    hasWhatsApp: boolean;
+  };
+  accommodation: {
+    id: string;
+    name: string;
+    destination: string;
+    address: string;
+    latitude: number;
+    longitude: number;
+    owner: {
+      name: string;
+      phone: string;
+    };
+  };
+}
 
 export default function GuideDashboardPage() {
   const t = useTranslations('guideDashboard');
+
+  // Fetch guide's clients
+  const { data: allClients, isLoading: loadingAll } = useApi<GuideClient[]>('/api/guide/clients');
+  const { data: todaysClients, isLoading: loadingToday } = useApi<GuideClient[]>('/api/guide/clients?today=true');
+
+  // Calculate stats from real data
+  const stats = {
+    todaysClients: todaysClients?.length || 0,
+    upcomingClients: allClients?.filter((c) => c.journeyStatus === 'NOT_STARTED').length || 0,
+    activeClients: allClients?.filter((c) => c.journeyStatus === 'DEPARTED' || c.journeyStatus === 'IN_GREECE').length || 0,
+    completedToday: todaysClients?.filter((c) => c.journeyStatus === 'ARRIVED').length || 0,
+  };
+
+  const isLoading = loadingAll || loadingToday;
 
   const getJourneyStatusIcon = (status: string) => {
     switch (status) {
@@ -111,6 +110,14 @@ export default function GuideDashboardPage() {
     }
   };
 
+  if (isLoading) {
+    return (
+      <div className="flex min-h-[400px] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
       {/* Header */}
@@ -128,7 +135,7 @@ export default function GuideDashboardPage() {
             </div>
             <div>
               <p className="text-sm text-foreground-muted">{t('todaysClients')}</p>
-              <p className="text-2xl font-bold">{mockStats.todaysClients}</p>
+              <p className="text-2xl font-bold">{stats.todaysClients}</p>
             </div>
           </CardContent>
         </Card>
@@ -140,7 +147,7 @@ export default function GuideDashboardPage() {
             </div>
             <div>
               <p className="text-sm text-foreground-muted">{t('upcomingClients')}</p>
-              <p className="text-2xl font-bold">{mockStats.upcomingClients}</p>
+              <p className="text-2xl font-bold">{stats.upcomingClients}</p>
             </div>
           </CardContent>
         </Card>
@@ -152,7 +159,7 @@ export default function GuideDashboardPage() {
             </div>
             <div>
               <p className="text-sm text-foreground-muted">{t('activeClients')}</p>
-              <p className="text-2xl font-bold">{mockStats.activeClients}</p>
+              <p className="text-2xl font-bold">{stats.activeClients}</p>
             </div>
           </CardContent>
         </Card>
@@ -164,7 +171,7 @@ export default function GuideDashboardPage() {
             </div>
             <div>
               <p className="text-sm text-foreground-muted">{t('completedToday')}</p>
-              <p className="text-2xl font-bold">{mockStats.completedToday}</p>
+              <p className="text-2xl font-bold">{stats.completedToday}</p>
             </div>
           </CardContent>
         </Card>
@@ -182,7 +189,7 @@ export default function GuideDashboardPage() {
           </Link>
         </CardHeader>
         <CardContent>
-          {mockTodaysClients.length === 0 ? (
+          {!todaysClients || todaysClients.length === 0 ? (
             <div className="py-8 text-center">
               <Users className="mx-auto h-12 w-12 text-foreground-muted" />
               <p className="mt-4 text-foreground-muted">{t('noClients')}</p>
@@ -190,7 +197,7 @@ export default function GuideDashboardPage() {
             </div>
           ) : (
             <div className="space-y-4">
-              {mockTodaysClients.map((client) => {
+              {todaysClients.map((client) => {
                 const StatusIcon = getJourneyStatusIcon(client.journeyStatus);
                 return (
                   <div
@@ -205,8 +212,8 @@ export default function GuideDashboardPage() {
                             <Users className="h-5 w-5 text-foreground-muted" />
                           </div>
                           <div>
-                            <p className="font-semibold">{client.name}</p>
-                            <p className="text-sm text-foreground-muted">{client.phone}</p>
+                            <p className="font-semibold">{client.guestName}</p>
+                            <p className="text-sm text-foreground-muted">{client.guestPhone}</p>
                           </div>
                         </div>
 
@@ -216,10 +223,12 @@ export default function GuideDashboardPage() {
                             <MapPin className="h-4 w-4" />
                             {client.accommodation.name}
                           </span>
-                          <span className="flex items-center gap-1 text-foreground-muted">
-                            <Clock className="h-4 w-4" />
-                            {client.arrivalTime}
-                          </span>
+                          {client.arrivalTime && (
+                            <span className="flex items-center gap-1 text-foreground-muted">
+                              <Clock className="h-4 w-4" />
+                              {client.arrivalTime}
+                            </span>
+                          )}
                           <span
                             className={cn(
                               'flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium',
@@ -231,17 +240,17 @@ export default function GuideDashboardPage() {
                           </span>
                         </div>
 
-                        {/* Meeting Point */}
+                        {/* Accommodation Address */}
                         <div className="mt-3">
-                          <p className="text-xs font-medium text-foreground-muted">Mesto sastanka:</p>
-                          <p className="text-sm">{client.meetingPoint}</p>
+                          <p className="text-xs font-medium text-foreground-muted">Adresa smeštaja:</p>
+                          <p className="text-sm">{client.accommodation.address}</p>
                         </div>
                       </div>
 
                       {/* Actions */}
                       <div className="flex flex-wrap gap-2">
                         <a
-                          href={getGoogleMapsUrl(client.meetingLatitude, client.meetingLongitude)}
+                          href={getGoogleMapsUrl(client.accommodation.latitude, client.accommodation.longitude)}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="inline-flex items-center gap-2 rounded-lg bg-primary/10 px-3 py-2 text-sm font-medium text-primary hover:bg-primary/20"
@@ -249,9 +258,9 @@ export default function GuideDashboardPage() {
                           <MapPin className="h-4 w-4" />
                           Mapa
                         </a>
-                        {client.hasViber && (
+                        {client.guestInfo.hasViber && (
                           <a
-                            href={getViberLink(client.phone)}
+                            href={getViberLink(client.guestPhone)}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="inline-flex items-center gap-2 rounded-lg bg-[#7360F2]/10 px-3 py-2 text-sm font-medium text-[#7360F2] hover:bg-[#7360F2]/20"
@@ -260,9 +269,9 @@ export default function GuideDashboardPage() {
                             Viber
                           </a>
                         )}
-                        {client.hasWhatsApp && (
+                        {client.guestInfo.hasWhatsApp && (
                           <a
-                            href={getWhatsAppLink(client.phone)}
+                            href={getWhatsAppLink(client.guestPhone)}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="inline-flex items-center gap-2 rounded-lg bg-[#25D366]/10 px-3 py-2 text-sm font-medium text-[#25D366] hover:bg-[#25D366]/20"

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import {
   Card,
@@ -19,41 +19,40 @@ import {
   ExternalLink,
   Home,
   User,
+  Loader2,
+  AlertCircle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getWhatsAppLink, getViberLink, getGoogleMapsUrl } from '@/lib/utils';
+import { Link } from '@/i18n/routing';
+import { useApi, useMutation } from '@/hooks';
+import type { Booking } from '@/hooks';
 
 type JourneyStatus = 'NOT_STARTED' | 'DEPARTED' | 'IN_GREECE' | 'ARRIVED';
-
-// Mock booking data - will be fetched from API
-const mockBooking = {
-  id: '1',
-  accommodation: {
-    name: 'Apartman Sunce',
-    address: 'Polihrono, Halkidiki',
-    latitude: 39.9589,
-    longitude: 23.7541,
-    ownerName: 'Nikos Papadopoulos',
-    ownerPhone: '+30 697 123 4567',
-  },
-  guide: {
-    name: 'Marko Petrović',
-    phone: '+381 60 123 4567',
-    meetingPoint: 'Benzinska pumpa na ulazu u Polihrono',
-    latitude: 39.9601,
-    longitude: 23.7555,
-  },
-  hasGuide: true,
-  arrivalDate: 'Danas',
-  arrivalTime: '18:00',
-};
 
 export default function JourneyPage() {
   const t = useTranslations('journey');
   const tDashboard = useTranslations('dashboard');
 
+  // Fetch active booking
+  const { data: bookings, isLoading, error } = useApi<Booking[]>('/api/bookings?status=CONFIRMED');
+  const activeBooking = bookings?.[0];
+
   const [journeyStatus, setJourneyStatus] = useState<JourneyStatus>('NOT_STARTED');
   const [isUpdating, setIsUpdating] = useState(false);
+
+  // Update local state when booking loads
+  useEffect(() => {
+    if (activeBooking?.journeyStatus) {
+      setJourneyStatus(activeBooking.journeyStatus as JourneyStatus);
+    }
+  }, [activeBooking?.journeyStatus]);
+
+  // Journey status update mutation
+  const updateJourney = useMutation<Booking, { journeyStatus: JourneyStatus }>(
+    activeBooking ? `/api/bookings/${activeBooking.id}/journey` : '',
+    'PATCH'
+  );
 
   const statusSteps = [
     {
@@ -95,32 +94,71 @@ export default function JourneyPage() {
   const currentIndex = getStatusIndex(journeyStatus);
 
   const handleStatusUpdate = async (newStatus: JourneyStatus) => {
+    if (!activeBooking) return;
+
     setIsUpdating(true);
 
     try {
-      // TODO: Make API call to update journey status
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      const result = await updateJourney.mutate({ journeyStatus: newStatus });
 
-      // Play sound for arrival
-      if (newStatus === 'ARRIVED') {
-        const audio = new Audio('/sounds/arrival.mp3');
-        audio.play().catch(() => {
-          // Ignore audio play errors
-        });
+      if (result) {
+        // Play sound for arrival
+        if (newStatus === 'ARRIVED') {
+          const audio = new Audio('/sounds/arrival.mp3');
+          audio.play().catch(() => {
+            // Ignore audio play errors
+          });
+        }
+
+        setJourneyStatus(newStatus);
       }
-
-      setJourneyStatus(newStatus);
-    } catch (error) {
-      console.error('Error updating status:', error);
+    } catch (err) {
+      console.error('Error updating status:', err);
     } finally {
       setIsUpdating(false);
     }
   };
 
   const canActivate = (stepIndex: number): boolean => {
-    // Can only activate the next step in sequence
     return stepIndex === currentIndex + 1;
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-[400px] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="mx-auto max-w-3xl px-4 py-8">
+        <Card className="p-12 text-center">
+          <AlertCircle className="mx-auto h-12 w-12 text-error" />
+          <h3 className="mt-4 text-lg font-medium text-error">Greška pri učitavanju</h3>
+          <p className="mt-2 text-foreground-muted">{error}</p>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!activeBooking) {
+    return (
+      <div className="mx-auto max-w-3xl px-4 py-8">
+        <Card className="p-12 text-center">
+          <Car className="mx-auto h-12 w-12 text-foreground-muted" />
+          <h3 className="mt-4 text-lg font-medium">Nema aktivnog putovanja</h3>
+          <p className="mt-2 text-foreground-muted">
+            Nemate trenutno aktivnu rezervaciju za praćenje putovanja.
+          </p>
+          <Link href="/dashboard">
+            <Button className="mt-4">Povratak na kontrolnu tablu</Button>
+          </Link>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 lg:px-8">
@@ -213,45 +251,49 @@ export default function JourneyPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
-            <h3 className="font-semibold">{mockBooking.accommodation.name}</h3>
-            <p className="text-sm text-foreground-muted">{mockBooking.accommodation.address}</p>
+            <h3 className="font-semibold">{activeBooking.accommodation?.name}</h3>
+            <p className="text-sm text-foreground-muted">{activeBooking.accommodation?.address}</p>
           </div>
 
           <div className="flex flex-wrap gap-3">
-            <a
-              href={getGoogleMapsUrl(
-                mockBooking.accommodation.latitude,
-                mockBooking.accommodation.longitude
-              )}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 rounded-lg bg-primary/10 px-3 py-2 text-sm font-medium text-primary hover:bg-primary/20"
-            >
-              <MapPin className="h-4 w-4" />
-              Otvori lokaciju
-              <ExternalLink className="h-3 w-3" />
-            </a>
+            {activeBooking.accommodation && (
+              <a
+                href={getGoogleMapsUrl(
+                  (activeBooking.accommodation as { latitude?: number }).latitude || 0,
+                  (activeBooking.accommodation as { longitude?: number }).longitude || 0
+                )}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 rounded-lg bg-primary/10 px-3 py-2 text-sm font-medium text-primary hover:bg-primary/20"
+              >
+                <MapPin className="h-4 w-4" />
+                Otvori lokaciju
+                <ExternalLink className="h-3 w-3" />
+              </a>
+            )}
           </div>
 
-          <div className="border-t pt-4">
-            <p className="mb-2 text-sm font-medium">Vlasnik smeštaja</p>
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
-                <User className="h-5 w-5 text-foreground-muted" />
-              </div>
-              <div>
-                <p className="font-medium">{mockBooking.accommodation.ownerName}</p>
-                <p className="text-sm text-foreground-muted">
-                  {mockBooking.accommodation.ownerPhone}
-                </p>
+          {activeBooking.accommodation?.owner && (
+            <div className="border-t pt-4">
+              <p className="mb-2 text-sm font-medium">Vlasnik smeštaja</p>
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
+                  <User className="h-5 w-5 text-foreground-muted" />
+                </div>
+                <div>
+                  <p className="font-medium">{activeBooking.accommodation.owner.name}</p>
+                  <p className="text-sm text-foreground-muted">
+                    {activeBooking.accommodation.owner.phone}
+                  </p>
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </CardContent>
       </Card>
 
       {/* Guide Info (if Bonus package) */}
-      {mockBooking.hasGuide && (
+      {activeBooking.guide && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -265,40 +307,30 @@ export default function JourneyPage() {
                 <User className="h-6 w-6 text-primary" />
               </div>
               <div>
-                <p className="font-semibold">{mockBooking.guide.name}</p>
-                <p className="text-sm text-foreground-muted">{mockBooking.guide.phone}</p>
+                <p className="font-semibold">{activeBooking.guide.name}</p>
+                <p className="text-sm text-foreground-muted">{activeBooking.guide.phone}</p>
               </div>
             </div>
 
-            <div>
-              <p className="text-sm font-medium text-foreground-muted">Mesto sastanka</p>
-              <p className="mt-1">{mockBooking.guide.meetingPoint}</p>
-            </div>
-
             <div className="flex flex-wrap gap-3">
-              <a
-                href={getGoogleMapsUrl(mockBooking.guide.latitude, mockBooking.guide.longitude)}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 rounded-lg bg-primary/10 px-3 py-2 text-sm font-medium text-primary hover:bg-primary/20"
-              >
-                <MapPin className="h-4 w-4" />
-                Lokacija sastanka
-              </a>
-              <a
-                href={getViberLink(mockBooking.guide.phone)}
-                className="inline-flex items-center gap-2 rounded-lg bg-[#7360F2]/10 px-3 py-2 text-sm font-medium text-[#7360F2] hover:bg-[#7360F2]/20"
-              >
-                <Phone className="h-4 w-4" />
-                Viber
-              </a>
-              <a
-                href={getWhatsAppLink(mockBooking.guide.phone)}
-                className="inline-flex items-center gap-2 rounded-lg bg-[#25D366]/10 px-3 py-2 text-sm font-medium text-[#25D366] hover:bg-[#25D366]/20"
-              >
-                <MessageCircle className="h-4 w-4" />
-                WhatsApp
-              </a>
+              {activeBooking.guide.phone && (
+                <>
+                  <a
+                    href={getViberLink(activeBooking.guide.phone)}
+                    className="inline-flex items-center gap-2 rounded-lg bg-[#7360F2]/10 px-3 py-2 text-sm font-medium text-[#7360F2] hover:bg-[#7360F2]/20"
+                  >
+                    <Phone className="h-4 w-4" />
+                    Viber
+                  </a>
+                  <a
+                    href={getWhatsAppLink(activeBooking.guide.phone)}
+                    className="inline-flex items-center gap-2 rounded-lg bg-[#25D366]/10 px-3 py-2 text-sm font-medium text-[#25D366] hover:bg-[#25D366]/20"
+                  >
+                    <MessageCircle className="h-4 w-4" />
+                    WhatsApp
+                  </a>
+                </>
+              )}
             </div>
           </CardContent>
         </Card>

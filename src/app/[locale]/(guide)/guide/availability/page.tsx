@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import {
   Card,
@@ -11,27 +11,38 @@ import {
   Checkbox,
   Label,
 } from '@/components/ui';
-import { MapPin, Check, X, Save } from 'lucide-react';
+import { MapPin, Check, X, Save, Loader2 } from 'lucide-react';
 import { ALL_DESTINATIONS } from '@/lib/constants';
 import { cn } from '@/lib/utils';
+import { useApi } from '@/hooks';
 
-// Mock current availability
-const mockAvailability = {
-  locations: ['POLIHRONO', 'HANIOTI', 'PEFKOHORI'],
-  dates: {
-    from: '2024-07-01',
-    to: '2024-08-31',
-  },
-  isAvailable: true,
-};
+interface GuideAvailability {
+  id: string;
+  destination: string;
+  isActive: boolean;
+  startDate: string;
+  endDate: string;
+}
 
 export default function GuideAvailabilityPage() {
   const t = useTranslations('guideDashboard');
-  const [isLoading, setIsLoading] = useState(false);
-  const [selectedLocations, setSelectedLocations] = useState<string[]>(
-    mockAvailability.locations
-  );
-  const [isAvailable, setIsAvailable] = useState(mockAvailability.isAvailable);
+  const [isSaving, setIsSaving] = useState(false);
+  const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
+  const [isAvailable, setIsAvailable] = useState(true);
+
+  // Fetch existing availability
+  const { data: availabilities, isLoading, refetch } = useApi<GuideAvailability[]>('/api/guide/availability');
+
+  // Initialize selected locations from fetched data
+  useEffect(() => {
+    if (availabilities && availabilities.length > 0) {
+      const activeLocations = availabilities
+        .filter((a) => a.isActive)
+        .map((a) => a.destination);
+      setSelectedLocations(activeLocations);
+      setIsAvailable(activeLocations.length > 0);
+    }
+  }, [availabilities]);
 
   const handleLocationToggle = (location: string) => {
     setSelectedLocations((prev) =>
@@ -42,18 +53,59 @@ export default function GuideAvailabilityPage() {
   };
 
   const handleSave = async () => {
-    setIsLoading(true);
+    setIsSaving(true);
 
     try {
-      // TODO: API call to save availability
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      console.log('Saved availability:', { selectedLocations, isAvailable });
+      // Create/update availability for each selected location
+      const startDate = new Date().toISOString();
+      const endDate = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(); // 90 days from now
+
+      // First, update existing ones to inactive if not selected
+      if (availabilities) {
+        for (const avail of availabilities) {
+          const shouldBeActive = selectedLocations.includes(avail.destination) && isAvailable;
+          if (avail.isActive !== shouldBeActive) {
+            await fetch('/api/guide/availability', {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ availabilityId: avail.id, isActive: shouldBeActive }),
+            });
+          }
+        }
+      }
+
+      // Then, create new entries for locations not yet in the database
+      const existingLocations = availabilities?.map((a) => a.destination) || [];
+      for (const location of selectedLocations) {
+        if (!existingLocations.includes(location)) {
+          await fetch('/api/guide/availability', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              destination: location,
+              startDate,
+              endDate,
+              isActive: isAvailable,
+            }),
+          });
+        }
+      }
+
+      refetch();
     } catch (error) {
       console.error('Error saving availability:', error);
     } finally {
-      setIsLoading(false);
+      setIsSaving(false);
     }
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-[400px] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 lg:px-8">
@@ -240,9 +292,9 @@ export default function GuideAvailabilityPage() {
 
       {/* Save Button */}
       <div className="flex justify-end">
-        <Button onClick={handleSave} disabled={isLoading} className="gap-2">
+        <Button onClick={handleSave} disabled={isSaving} className="gap-2">
           <Save className="h-4 w-4" />
-          {isLoading ? 'Čuvanje...' : t('saveAvailability')}
+          {isSaving ? 'Čuvanje...' : t('saveAvailability')}
         </Button>
       </div>
     </div>

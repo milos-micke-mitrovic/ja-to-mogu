@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useTranslations } from 'next-intl';
 import {
   Card,
@@ -23,64 +23,33 @@ import {
   Check,
   X,
   MessageCircle,
+  Loader2,
 } from 'lucide-react';
 import { formatPrice, formatDate, getWhatsAppLink, getViberLink } from '@/lib/utils';
 import { cn } from '@/lib/utils';
+import { useApi } from '@/hooks';
 
-// Mock data
-const mockBookings = [
-  {
-    id: '1',
-    guestName: 'Marko Petrović',
-    guestEmail: 'marko@email.com',
-    guestPhone: '+381 60 123 4567',
-    hasViber: true,
-    hasWhatsApp: true,
-    accommodationId: '1',
-    accommodationName: 'Apartman Sunce',
-    checkIn: '2024-07-20',
-    checkInTime: '16:00',
-    checkOut: '2024-07-27',
-    status: 'CONFIRMED',
-    journeyStatus: 'IN_GREECE',
-    totalAmount: 31500,
-    createdAt: '2024-07-15',
-  },
-  {
-    id: '2',
-    guestName: 'Ana Jovanović',
-    guestEmail: 'ana@email.com',
-    guestPhone: '+381 63 987 6543',
-    hasViber: true,
-    hasWhatsApp: false,
-    accommodationId: '2',
-    accommodationName: 'Vila Panorama',
-    checkIn: '2024-07-22',
-    checkInTime: '14:00',
-    checkOut: '2024-07-29',
-    status: 'PENDING',
-    journeyStatus: 'NOT_STARTED',
-    totalAmount: 56000,
-    createdAt: '2024-07-18',
-  },
-  {
-    id: '3',
-    guestName: 'Nikola Nikolić',
-    guestEmail: 'nikola@email.com',
-    guestPhone: '+381 64 555 1234',
-    hasViber: false,
-    hasWhatsApp: true,
-    accommodationId: '1',
-    accommodationName: 'Apartman Sunce',
-    checkIn: '2024-07-10',
-    checkInTime: '18:00',
-    checkOut: '2024-07-17',
-    status: 'COMPLETED',
-    journeyStatus: 'ARRIVED',
-    totalAmount: 31500,
-    createdAt: '2024-07-05',
-  },
-];
+interface OwnerBooking {
+  id: string;
+  guestName: string;
+  guestEmail: string;
+  guestPhone: string;
+  hasViber: boolean;
+  hasWhatsApp: boolean;
+  arrivalDate: string;
+  arrivalTime: string | null;
+  duration: string;
+  status: string;
+  journeyStatus: string;
+  totalPrice: number;
+  createdAt: string;
+  accommodation: {
+    id: string;
+    name: string;
+    destination: string;
+    address: string;
+  };
+}
 
 export default function OwnerBookingsPage() {
   const t = useTranslations('ownerDashboard');
@@ -88,13 +57,19 @@ export default function OwnerBookingsPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [expandedBooking, setExpandedBooking] = useState<string | null>(null);
 
-  const filteredBookings = mockBookings.filter((booking) => {
-    const matchesSearch =
-      booking.guestName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      booking.accommodationName.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || booking.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  // Fetch bookings from API
+  const { data: bookings, isLoading, refetch } = useApi<OwnerBooking[]>('/api/owner/bookings');
+
+  const filteredBookings = useMemo(() => {
+    if (!bookings) return [];
+    return bookings.filter((booking) => {
+      const matchesSearch =
+        booking.guestName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        booking.accommodation.name.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesStatus = statusFilter === 'all' || booking.status === statusFilter;
+      return matchesSearch && matchesStatus;
+    });
+  }, [bookings, searchQuery, statusFilter]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -160,10 +135,39 @@ export default function OwnerBookingsPage() {
     }
   };
 
-  const handleConfirmArrival = async (bookingId: string) => {
-    // TODO: API call to confirm arrival
-    console.log('Confirm arrival for booking:', bookingId);
+  const handleConfirmBooking = async (bookingId: string) => {
+    try {
+      await fetch(`/api/admin/bookings`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bookingId, status: 'CONFIRMED' }),
+      });
+      refetch();
+    } catch (error) {
+      console.error('Error confirming booking:', error);
+    }
   };
+
+  const handleCancelBooking = async (bookingId: string) => {
+    try {
+      await fetch(`/api/admin/bookings`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bookingId, status: 'CANCELLED' }),
+      });
+      refetch();
+    } catch (error) {
+      console.error('Error cancelling booking:', error);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-[400px] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
@@ -230,16 +234,18 @@ export default function OwnerBookingsPage() {
                     </div>
                     <div>
                       <p className="font-semibold">{booking.guestName}</p>
-                      <p className="text-sm text-foreground-muted">{booking.accommodationName}</p>
+                      <p className="text-sm text-foreground-muted">{booking.accommodation.name}</p>
                       <div className="mt-1 flex flex-wrap items-center gap-3 text-sm text-foreground-muted">
                         <span className="flex items-center gap-1">
                           <Calendar className="h-4 w-4" />
-                          {formatDate(booking.checkIn)}
+                          {formatDate(booking.arrivalDate)}
                         </span>
-                        <span className="flex items-center gap-1">
-                          <Clock className="h-4 w-4" />
-                          {booking.checkInTime}
-                        </span>
+                        {booking.arrivalTime && (
+                          <span className="flex items-center gap-1">
+                            <Clock className="h-4 w-4" />
+                            {booking.arrivalTime}
+                          </span>
+                        )}
                         <span className={cn('font-medium', getJourneyStatusColor(booking.journeyStatus))}>
                           {getJourneyStatusLabel(booking.journeyStatus)}
                         </span>
@@ -257,7 +263,7 @@ export default function OwnerBookingsPage() {
                       {getStatusLabel(booking.status)}
                     </span>
                     <span className="text-lg font-bold text-primary">
-                      {formatPrice(booking.totalAmount)}
+                      {formatPrice(booking.totalPrice)}
                     </span>
                   </div>
                 </div>
@@ -318,11 +324,11 @@ export default function OwnerBookingsPage() {
                         <div className="space-y-2 text-sm">
                           <div className="flex justify-between">
                             <span className="text-foreground-muted">Dolazak:</span>
-                            <span>{formatDate(booking.checkIn)} u {booking.checkInTime}</span>
+                            <span>{formatDate(booking.arrivalDate)}{booking.arrivalTime ? ` u ${booking.arrivalTime}` : ''}</span>
                           </div>
                           <div className="flex justify-between">
-                            <span className="text-foreground-muted">Odlazak:</span>
-                            <span>{formatDate(booking.checkOut)}</span>
+                            <span className="text-foreground-muted">Trajanje:</span>
+                            <span>{booking.duration}</span>
                           </div>
                           <div className="flex justify-between">
                             <span className="text-foreground-muted">Rezervisano:</span>
@@ -330,7 +336,7 @@ export default function OwnerBookingsPage() {
                           </div>
                           <div className="flex justify-between font-medium">
                             <span>Ukupno:</span>
-                            <span className="text-primary">{formatPrice(booking.totalAmount)}</span>
+                            <span className="text-primary">{formatPrice(booking.totalPrice)}</span>
                           </div>
                         </div>
                       </div>
@@ -338,23 +344,13 @@ export default function OwnerBookingsPage() {
 
                     {/* Actions */}
                     <div className="mt-4 flex flex-wrap gap-2 border-t border-border pt-4">
-                      {booking.status === 'CONFIRMED' && booking.journeyStatus === 'ARRIVED' && (
-                        <Button
-                          size="sm"
-                          className="gap-2"
-                          onClick={() => handleConfirmArrival(booking.id)}
-                        >
-                          <Check className="h-4 w-4" />
-                          {t('confirmArrival')}
-                        </Button>
-                      )}
                       {booking.status === 'PENDING' && (
                         <>
-                          <Button size="sm" className="gap-2">
+                          <Button size="sm" className="gap-2" onClick={() => handleConfirmBooking(booking.id)}>
                             <Check className="h-4 w-4" />
                             Potvrdi
                           </Button>
-                          <Button size="sm" variant="outline" className="gap-2 text-error">
+                          <Button size="sm" variant="outline" className="gap-2 text-error" onClick={() => handleCancelBooking(booking.id)}>
                             <X className="h-4 w-4" />
                             Odbij
                           </Button>

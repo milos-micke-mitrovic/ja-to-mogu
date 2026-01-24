@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useTranslations } from 'next-intl';
 import {
   Card,
@@ -25,93 +25,41 @@ import {
   Calendar,
   Home,
   ExternalLink,
+  Loader2,
 } from 'lucide-react';
 import { formatDate, getWhatsAppLink, getViberLink, getGoogleMapsUrl } from '@/lib/utils';
 import { cn } from '@/lib/utils';
+import { useApi } from '@/hooks';
 
-// Mock data
-const mockClients = [
-  {
-    id: '1',
-    name: 'Marko Petrović',
-    phone: '+381 60 123 4567',
-    email: 'marko@email.com',
-    hasViber: true,
-    hasWhatsApp: true,
-    accommodation: {
-      name: 'Apartman Sunce',
-      address: 'Polihrono, Halkidiki',
-      latitude: 39.9589,
-      longitude: 23.7541,
-    },
-    arrivalDate: '2024-07-20',
-    arrivalTime: '18:00',
-    journeyStatus: 'IN_GREECE',
-    meetingPoint: 'Benzinska pumpa na ulazu u Polihrono',
-    meetingLatitude: 39.9601,
-    meetingLongitude: 23.7555,
-  },
-  {
-    id: '2',
-    name: 'Ana Jovanović',
-    phone: '+381 63 987 6543',
-    email: 'ana@email.com',
-    hasViber: true,
-    hasWhatsApp: false,
-    accommodation: {
-      name: 'Vila Panorama',
-      address: 'Polihrono, Halkidiki',
-      latitude: 39.9601,
-      longitude: 23.7555,
-    },
-    arrivalDate: '2024-07-20',
-    arrivalTime: '20:00',
-    journeyStatus: 'DEPARTED',
-    meetingPoint: 'Benzinska pumpa na ulazu u Polihrono',
-    meetingLatitude: 39.9601,
-    meetingLongitude: 23.7555,
-  },
-  {
-    id: '3',
-    name: 'Nikola Nikolić',
-    phone: '+381 64 555 1234',
-    email: 'nikola@email.com',
-    hasViber: false,
-    hasWhatsApp: true,
-    accommodation: {
-      name: 'Studio More',
-      address: 'Polihrono, Halkidiki',
-      latitude: 39.9575,
-      longitude: 23.7530,
-    },
-    arrivalDate: '2024-07-21',
-    arrivalTime: '14:00',
-    journeyStatus: 'NOT_STARTED',
-    meetingPoint: 'Benzinska pumpa na ulazu u Polihrono',
-    meetingLatitude: 39.9601,
-    meetingLongitude: 23.7555,
-  },
-  {
-    id: '4',
-    name: 'Jovana Đorđević',
-    phone: '+381 65 111 2222',
-    email: 'jovana@email.com',
-    hasViber: true,
-    hasWhatsApp: true,
-    accommodation: {
-      name: 'Apartman Sunce',
-      address: 'Polihrono, Halkidiki',
-      latitude: 39.9589,
-      longitude: 23.7541,
-    },
-    arrivalDate: '2024-07-19',
-    arrivalTime: '16:00',
-    journeyStatus: 'ARRIVED',
-    meetingPoint: 'Benzinska pumpa na ulazu u Polihrono',
-    meetingLatitude: 39.9601,
-    meetingLongitude: 23.7555,
-  },
-];
+interface GuideClient {
+  id: string;
+  guestName: string;
+  guestPhone: string;
+  guestEmail: string;
+  arrivalDate: string;
+  arrivalTime: string | null;
+  journeyStatus: string;
+  status: string;
+  guestInfo: {
+    name: string;
+    phone: string;
+    email: string;
+    hasViber: boolean;
+    hasWhatsApp: boolean;
+  };
+  accommodation: {
+    id: string;
+    name: string;
+    destination: string;
+    address: string;
+    latitude: number;
+    longitude: number;
+    owner: {
+      name: string;
+      phone: string;
+    };
+  };
+}
 
 export default function GuideClientsPage() {
   const t = useTranslations('guideDashboard');
@@ -119,14 +67,20 @@ export default function GuideClientsPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [expandedClient, setExpandedClient] = useState<string | null>(null);
 
-  const filteredClients = mockClients.filter((client) => {
-    const matchesSearch =
-      client.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      client.accommodation.name.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus =
-      statusFilter === 'all' || client.journeyStatus === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  // Fetch clients from API
+  const { data: clients, isLoading } = useApi<GuideClient[]>('/api/guide/clients');
+
+  const filteredClients = useMemo(() => {
+    if (!clients) return [];
+    return clients.filter((client) => {
+      const matchesSearch =
+        client.guestName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        client.accommodation.name.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesStatus =
+        statusFilter === 'all' || client.journeyStatus === statusFilter;
+      return matchesSearch && matchesStatus;
+    });
+  }, [clients, searchQuery, statusFilter]);
 
   const getJourneyStatusIcon = (status: string) => {
     switch (status) {
@@ -170,6 +124,14 @@ export default function GuideClientsPage() {
         return 'bg-muted text-foreground-muted';
     }
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-[400px] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
@@ -238,17 +200,19 @@ export default function GuideClientsPage() {
                         <Users className="h-6 w-6 text-foreground-muted" />
                       </div>
                       <div>
-                        <p className="font-semibold">{client.name}</p>
+                        <p className="font-semibold">{client.guestName}</p>
                         <p className="text-sm text-foreground-muted">{client.accommodation.name}</p>
                         <div className="mt-1 flex flex-wrap items-center gap-3 text-sm text-foreground-muted">
                           <span className="flex items-center gap-1">
                             <Calendar className="h-4 w-4" />
                             {formatDate(client.arrivalDate)}
                           </span>
-                          <span className="flex items-center gap-1">
-                            <Clock className="h-4 w-4" />
-                            {client.arrivalTime}
-                          </span>
+                          {client.arrivalTime && (
+                            <span className="flex items-center gap-1">
+                              <Clock className="h-4 w-4" />
+                              {client.arrivalTime}
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -276,15 +240,15 @@ export default function GuideClientsPage() {
                           <div className="space-y-2 text-sm">
                             <div className="flex items-center gap-2">
                               <Phone className="h-4 w-4 text-foreground-muted" />
-                              <span>{client.phone}</span>
+                              <span>{client.guestPhone}</span>
                             </div>
                           </div>
 
                           {/* Contact Options */}
                           <div className="mt-4 flex flex-wrap gap-2">
-                            {client.hasViber && (
+                            {client.guestInfo.hasViber && (
                               <a
-                                href={getViberLink(client.phone)}
+                                href={getViberLink(client.guestPhone)}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="inline-flex items-center gap-2 rounded-lg bg-[#7360F2]/10 px-3 py-2 text-sm font-medium text-[#7360F2] hover:bg-[#7360F2]/20"
@@ -293,9 +257,9 @@ export default function GuideClientsPage() {
                                 Viber
                               </a>
                             )}
-                            {client.hasWhatsApp && (
+                            {client.guestInfo.hasWhatsApp && (
                               <a
-                                href={getWhatsAppLink(client.phone)}
+                                href={getWhatsAppLink(client.guestPhone)}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="inline-flex items-center gap-2 rounded-lg bg-[#25D366]/10 px-3 py-2 text-sm font-medium text-[#25D366] hover:bg-[#25D366]/20"
@@ -307,9 +271,9 @@ export default function GuideClientsPage() {
                           </div>
                         </div>
 
-                        {/* Accommodation & Meeting */}
+                        {/* Accommodation Info */}
                         <div>
-                          <h4 className="mb-3 font-semibold">Smeštaj i mesto sastanka</h4>
+                          <h4 className="mb-3 font-semibold">Smeštaj</h4>
                           <div className="space-y-3 text-sm">
                             <div className="flex items-start gap-2">
                               <Home className="mt-0.5 h-4 w-4 flex-shrink-0 text-foreground-muted" />
@@ -318,27 +282,19 @@ export default function GuideClientsPage() {
                                 <p className="text-foreground-muted">{client.accommodation.address}</p>
                               </div>
                             </div>
-                            <div className="flex items-start gap-2">
-                              <MapPin className="mt-0.5 h-4 w-4 flex-shrink-0 text-foreground-muted" />
-                              <div>
-                                <p className="font-medium">Mesto sastanka</p>
-                                <p className="text-foreground-muted">{client.meetingPoint}</p>
+                            {client.accommodation.owner && (
+                              <div className="flex items-start gap-2">
+                                <Users className="mt-0.5 h-4 w-4 flex-shrink-0 text-foreground-muted" />
+                                <div>
+                                  <p className="font-medium">Vlasnik: {client.accommodation.owner.name}</p>
+                                  <p className="text-foreground-muted">{client.accommodation.owner.phone}</p>
+                                </div>
                               </div>
-                            </div>
+                            )}
                           </div>
 
-                          {/* Map Links */}
+                          {/* Map Link */}
                           <div className="mt-4 flex flex-wrap gap-2">
-                            <a
-                              href={getGoogleMapsUrl(client.meetingLatitude, client.meetingLongitude)}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-2 rounded-lg bg-primary/10 px-3 py-2 text-sm font-medium text-primary hover:bg-primary/20"
-                            >
-                              <MapPin className="h-4 w-4" />
-                              Mesto sastanka
-                              <ExternalLink className="h-3 w-3" />
-                            </a>
                             <a
                               href={getGoogleMapsUrl(
                                 client.accommodation.latitude,
@@ -346,10 +302,10 @@ export default function GuideClientsPage() {
                               )}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="inline-flex items-center gap-2 rounded-lg bg-muted px-3 py-2 text-sm font-medium text-foreground-muted hover:bg-muted/80"
+                              className="inline-flex items-center gap-2 rounded-lg bg-primary/10 px-3 py-2 text-sm font-medium text-primary hover:bg-primary/20"
                             >
-                              <Home className="h-4 w-4" />
-                              Smeštaj
+                              <MapPin className="h-4 w-4" />
+                              Otvori lokaciju
                               <ExternalLink className="h-3 w-3" />
                             </a>
                           </div>
