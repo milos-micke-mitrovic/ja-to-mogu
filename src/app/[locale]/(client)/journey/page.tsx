@@ -103,6 +103,7 @@ export default function JourneyPage() {
 
       if (result) {
         // Play sound for arrival
+        // TODO: Add /public/sounds/arrival.mp3 audio file
         if (newStatus === 'ARRIVED') {
           const audio = new Audio('/sounds/arrival.mp3');
           audio.play().catch(() => {

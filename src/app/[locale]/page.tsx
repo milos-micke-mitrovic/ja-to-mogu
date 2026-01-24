@@ -58,7 +58,7 @@ function HomeContent() {
               <p className="mt-8 text-2xl font-bold text-foreground">{t('heroCta')}</p>
             </div>
 
-            {/* Video Placeholder */}
+            {/* TODO: Add promotional video */}
             <div className="mx-auto mt-12 max-w-3xl">
               <div className="aspect-video overflow-hidden rounded-xl bg-muted shadow-lg">
                 <div className="flex h-full items-center justify-center">
