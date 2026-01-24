@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import {
   Card,
@@ -12,54 +12,112 @@ import {
   Label,
   Checkbox,
 } from '@/components/ui';
-import { Settings, DollarSign, MapPin, Save, AlertTriangle } from 'lucide-react';
+import { Settings, DollarSign, MapPin, Save, AlertTriangle, Loader2, CheckCircle } from 'lucide-react';
 import { formatPrice } from '@/lib/utils';
 import { ALL_DESTINATIONS } from '@/lib/constants';
+import { useApi } from '@/hooks';
 
-// Mock settings
-const mockSettings = {
-  basicPackagePrice: 3000,
-  bonusPackagePrice: 7000,
-  reservationHoldTime: 36,
-  cancellationCompensation: 20,
-  unavailableLocations: ['VOURVOUROU', 'TORONI'],
-};
+interface PackageSetting {
+  id: string;
+  packageType: 'BASIC' | 'BONUS';
+  price: number;
+  isActive: boolean;
+}
+
+interface SettingsResponse {
+  packageSettings: PackageSetting[];
+  unavailableLocations: string[];
+}
 
 export default function AdminSettingsPage() {
   const t = useTranslations('admin');
-  const [isLoading, setIsLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
-  const [settings, setSettings] = useState(mockSettings);
+  // Fetch settings from API
+  const { data, isLoading, error, refetch } = useApi<SettingsResponse>('/api/admin/settings');
 
-  const handlePriceChange = (field: string, value: string) => {
-    setSettings((prev) => ({
-      ...prev,
-      [field]: Number(value) || 0,
-    }));
-  };
+  // Local form state
+  const [basicPrice, setBasicPrice] = useState(3000);
+  const [bonusPrice, setBonusPrice] = useState(7000);
+  const [unavailableLocations, setUnavailableLocations] = useState<string[]>([]);
+
+  // Initialize form with fetched data
+  useEffect(() => {
+    if (data) {
+      const basicSetting = data.packageSettings?.find((p) => p.packageType === 'BASIC');
+      const bonusSetting = data.packageSettings?.find((p) => p.packageType === 'BONUS');
+
+      if (basicSetting) setBasicPrice(basicSetting.price);
+      if (bonusSetting) setBonusPrice(bonusSetting.price);
+      if (data.unavailableLocations) setUnavailableLocations(data.unavailableLocations);
+    }
+  }, [data]);
 
   const handleLocationToggle = (location: string) => {
-    setSettings((prev) => ({
-      ...prev,
-      unavailableLocations: prev.unavailableLocations.includes(location)
-        ? prev.unavailableLocations.filter((l) => l !== location)
-        : [...prev.unavailableLocations, location],
-    }));
+    setUnavailableLocations((prev) =>
+      prev.includes(location)
+        ? prev.filter((l) => l !== location)
+        : [...prev, location]
+    );
   };
 
   const handleSave = async () => {
-    setIsLoading(true);
+    setIsSaving(true);
+    setSaveSuccess(false);
+    setSaveError(null);
 
     try {
-      // TODO: API call to save settings
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      console.log('Saved settings:', settings);
-    } catch (error) {
-      console.error('Error saving settings:', error);
+      const response = await fetch('/api/admin/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          packageSettings: [
+            { packageType: 'BASIC', price: basicPrice },
+            { packageType: 'BONUS', price: bonusPrice },
+          ],
+          unavailableLocations,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Greška pri čuvanju');
+      }
+
+      setSaveSuccess(true);
+      refetch();
+
+      // Clear success message after 3 seconds
+      setTimeout(() => setSaveSuccess(false), 3000);
+    } catch (err) {
+      console.error('Error saving settings:', err);
+      setSaveError(err instanceof Error ? err.message : 'Greška pri čuvanju podešavanja');
     } finally {
-      setIsLoading(false);
+      setIsSaving(false);
     }
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-[400px] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-6 lg:p-8">
+        <Card className="p-12 text-center">
+          <Settings className="mx-auto h-12 w-12 text-error" />
+          <h3 className="mt-4 text-lg font-medium text-error">Greška pri učitavanju</h3>
+          <p className="mt-2 text-foreground-muted">{error}</p>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 lg:p-8">
@@ -68,6 +126,20 @@ export default function AdminSettingsPage() {
         <h1 className="text-2xl font-bold text-foreground sm:text-3xl">{t('settings')}</h1>
         <p className="mt-2 text-foreground-muted">Podešavanja platforme</p>
       </div>
+
+      {/* Success/Error Messages */}
+      {saveSuccess && (
+        <div className="mb-6 flex items-center gap-2 rounded-lg bg-success/10 p-4 text-success">
+          <CheckCircle className="h-5 w-5" />
+          Podešavanja su uspešno sačuvana
+        </div>
+      )}
+      {saveError && (
+        <div className="mb-6 flex items-center gap-2 rounded-lg bg-error/10 p-4 text-error">
+          <AlertTriangle className="h-5 w-5" />
+          {saveError}
+        </div>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Package Prices */}
@@ -84,11 +156,11 @@ export default function AdminSettingsPage() {
               <Input
                 id="basicPrice"
                 type="number"
-                value={settings.basicPackagePrice}
-                onChange={(e) => handlePriceChange('basicPackagePrice', e.target.value)}
+                value={basicPrice}
+                onChange={(e) => setBasicPrice(Number(e.target.value) || 0)}
               />
               <p className="text-sm text-foreground-muted">
-                Trenutno: {formatPrice(settings.basicPackagePrice)}
+                Trenutno: {formatPrice(basicPrice)}
               </p>
             </div>
 
@@ -97,44 +169,36 @@ export default function AdminSettingsPage() {
               <Input
                 id="bonusPrice"
                 type="number"
-                value={settings.bonusPackagePrice}
-                onChange={(e) => handlePriceChange('bonusPackagePrice', e.target.value)}
+                value={bonusPrice}
+                onChange={(e) => setBonusPrice(Number(e.target.value) || 0)}
               />
               <p className="text-sm text-foreground-muted">
-                Trenutno: {formatPrice(settings.bonusPackagePrice)}
+                Trenutno: {formatPrice(bonusPrice)}
               </p>
             </div>
           </CardContent>
         </Card>
 
-        {/* Reservation Settings */}
+        {/* Reservation Info */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Settings className="h-5 w-5 text-primary" />
-              Podešavanja rezervacija
+              Informacije o rezervacijama
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="holdTime">Vreme čuvanja rezervacije (sati)</Label>
-              <Input
-                id="holdTime"
-                type="number"
-                value={settings.reservationHoldTime}
-                onChange={(e) => handlePriceChange('reservationHoldTime', e.target.value)}
-              />
+            <div className="rounded-lg bg-muted p-4">
+              <p className="text-sm text-foreground-muted">
+                <strong>Vreme čuvanja rezervacije:</strong> 36 sati
+              </p>
+              <p className="mt-2 text-sm text-foreground-muted">
+                <strong>Kompenzacija za otkazivanje:</strong> 20 EUR
+              </p>
             </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="compensation">Kompenzacija za otkazivanje (EUR)</Label>
-              <Input
-                id="compensation"
-                type="number"
-                value={settings.cancellationCompensation}
-                onChange={(e) => handlePriceChange('cancellationCompensation', e.target.value)}
-              />
-            </div>
+            <p className="text-xs text-foreground-muted">
+              Ova podešavanja su fiksna i definisana uslovima korišćenja platforme.
+            </p>
           </CardContent>
         </Card>
 
@@ -164,13 +228,13 @@ export default function AdminSettingsPage() {
                     <div key={dest.value} className="flex items-center gap-3">
                       <Checkbox
                         id={dest.value}
-                        checked={settings.unavailableLocations.includes(dest.value)}
+                        checked={unavailableLocations.includes(dest.value)}
                         onCheckedChange={() => handleLocationToggle(dest.value)}
                       />
                       <Label
                         htmlFor={dest.value}
                         className={`cursor-pointer text-sm ${
-                          settings.unavailableLocations.includes(dest.value)
+                          unavailableLocations.includes(dest.value)
                             ? 'text-error line-through'
                             : ''
                         }`}
@@ -192,13 +256,13 @@ export default function AdminSettingsPage() {
                     <div key={dest.value} className="flex items-center gap-3">
                       <Checkbox
                         id={dest.value}
-                        checked={settings.unavailableLocations.includes(dest.value)}
+                        checked={unavailableLocations.includes(dest.value)}
                         onCheckedChange={() => handleLocationToggle(dest.value)}
                       />
                       <Label
                         htmlFor={dest.value}
                         className={`cursor-pointer text-sm ${
-                          settings.unavailableLocations.includes(dest.value)
+                          unavailableLocations.includes(dest.value)
                             ? 'text-error line-through'
                             : ''
                         }`}
@@ -220,13 +284,13 @@ export default function AdminSettingsPage() {
                     <div key={dest.value} className="flex items-center gap-3">
                       <Checkbox
                         id={dest.value}
-                        checked={settings.unavailableLocations.includes(dest.value)}
+                        checked={unavailableLocations.includes(dest.value)}
                         onCheckedChange={() => handleLocationToggle(dest.value)}
                       />
                       <Label
                         htmlFor={dest.value}
                         className={`cursor-pointer text-sm ${
-                          settings.unavailableLocations.includes(dest.value)
+                          unavailableLocations.includes(dest.value)
                             ? 'text-error line-through'
                             : ''
                         }`}
@@ -239,11 +303,11 @@ export default function AdminSettingsPage() {
               </div>
             </div>
 
-            {settings.unavailableLocations.length > 0 && (
+            {unavailableLocations.length > 0 && (
               <div className="mt-4 flex items-start gap-2 rounded-lg bg-warning-light p-3">
                 <AlertTriangle className="h-5 w-5 flex-shrink-0 text-warning" />
                 <p className="text-sm text-warning-foreground">
-                  {settings.unavailableLocations.length} lokacija je označeno kao nedostupno.
+                  {unavailableLocations.length} lokacija je označeno kao nedostupno.
                   Klijenti neće moći da rezervišu smeštaj na tim lokacijama.
                 </p>
               </div>
@@ -254,9 +318,13 @@ export default function AdminSettingsPage() {
 
       {/* Save Button */}
       <div className="mt-6 flex justify-end">
-        <Button onClick={handleSave} disabled={isLoading} className="gap-2">
-          <Save className="h-4 w-4" />
-          {isLoading ? 'Čuvanje...' : 'Sačuvaj podešavanja'}
+        <Button onClick={handleSave} disabled={isSaving} className="gap-2">
+          {isSaving ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Save className="h-4 w-4" />
+          )}
+          {isSaving ? 'Čuvanje...' : 'Sačuvaj podešavanja'}
         </Button>
       </div>
     </div>
