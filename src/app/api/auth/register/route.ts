@@ -1,75 +1,67 @@
-import { NextResponse } from 'next/server';
-import bcrypt from 'bcryptjs';
-import { prisma } from '@/lib/db';
-import { registerSchema } from '@/lib/validations/auth';
-import crypto from 'crypto';
+import { NextRequest, NextResponse } from 'next/server';
+import { hash } from 'bcryptjs';
+import { prisma } from '@/lib/prisma';
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const validatedFields = registerSchema.safeParse(body);
+    const { name, email, password } = body;
 
-    if (!validatedFields.success) {
+    // Validation
+    if (!name || !email || !password) {
       return NextResponse.json(
-        { error: 'Nevažeći podaci', details: validatedFields.error.flatten() },
+        { error: 'Sva polja su obavezna' },
         { status: 400 }
       );
     }
 
-    const { name, email, password } = validatedFields.data;
+    if (password.length < 6) {
+      return NextResponse.json(
+        { error: 'Lozinka mora imati najmanje 6 karaktera' },
+        { status: 400 }
+      );
+    }
 
     // Check if user already exists
     const existingUser = await prisma.user.findUnique({
-      where: { email },
+      where: { email: email.toLowerCase() },
     });
 
     if (existingUser) {
-      return NextResponse.json({ error: 'Korisnik sa ovim emailom već postoji' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Korisnik sa ovom email adresom već postoji' },
+        { status: 400 }
+      );
     }
 
     // Hash password
-    const hashedPassword = await bcrypt.hash(password, 12);
+    const hashedPassword = await hash(password, 12);
 
     // Create user
     const user = await prisma.user.create({
       data: {
         name,
-        email,
+        email: email.toLowerCase(),
         hashedPassword,
-        role: 'CLIENT',
+        role: 'CLIENT', // Default role for new registrations
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
       },
     });
-
-    // Generate verification token
-    const verificationToken = crypto.randomBytes(32).toString('hex');
-    const expires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
-
-    await prisma.verificationToken.create({
-      data: {
-        token: verificationToken,
-        userId: user.id,
-        expires,
-      },
-    });
-
-    // TODO: Send verification email using Resend
-    // For now, just return success
-    // In production, you would send an email with a link to verify the email
 
     return NextResponse.json(
-      {
-        success: true,
-        message: 'Registracija uspešna. Proverite email za potvrdu.',
-        user: {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-        },
-      },
+      { message: 'Registracija uspešna', user },
       { status: 201 }
     );
   } catch (error) {
     console.error('Registration error:', error);
-    return NextResponse.json({ error: 'Greška na serveru' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Greška pri registraciji' },
+      { status: 500 }
+    );
   }
 }

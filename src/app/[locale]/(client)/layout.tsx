@@ -10,7 +10,7 @@ export default async function ClientLayout({ children }: ClientLayoutProps) {
   const session = await auth();
 
   if (!session?.user) {
-    redirect('/login');
+    redirect('/login' as Parameters<typeof redirect>[0]);
   }
 
   // Only allow CLIENT role (or ADMIN for testing)
