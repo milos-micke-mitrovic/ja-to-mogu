@@ -1,50 +1,72 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useTranslations } from 'next-intl';
 import { Card, CardContent, Button, Input } from '@/components/ui';
-import { Users, Plus, Search, Building2, Pencil, Trash2, Phone, Mail } from 'lucide-react';
+import { Users, Plus, Search, Building2, Pencil, Trash2, Phone, Mail, Loader2 } from 'lucide-react';
+import { useApi } from '@/hooks';
 
-// Mock data
-const mockOwners = [
-  {
-    id: '1',
-    name: 'Nikos Papadopoulos',
-    email: 'nikos@email.gr',
-    phone: '+30 697 123 4567',
-    accommodationsCount: 3,
-    totalBookings: 45,
-    status: 'ACTIVE',
-  },
-  {
-    id: '2',
-    name: 'Maria Georgiou',
-    email: 'maria@email.gr',
-    phone: '+30 698 234 5678',
-    accommodationsCount: 2,
-    totalBookings: 28,
-    status: 'ACTIVE',
-  },
-  {
-    id: '3',
-    name: 'Yannis Dimitriou',
-    email: 'yannis@email.gr',
-    phone: '+30 699 345 6789',
-    accommodationsCount: 1,
-    totalBookings: 12,
-    status: 'INACTIVE',
-  },
-];
+interface AdminUser {
+  id: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  role: string;
+  isActive: boolean;
+  createdAt: string;
+  _count: {
+    bookings: number;
+    accommodations: number;
+    guidedBookings: number;
+  };
+}
+
+interface UsersResponse {
+  users: AdminUser[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
 
 export default function AdminOwnersPage() {
   const t = useTranslations('admin');
   const [searchQuery, setSearchQuery] = useState('');
 
-  const filteredOwners = mockOwners.filter(
-    (owner) =>
-      owner.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      owner.email.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Fetch owners (users with role OWNER)
+  const { data, isLoading, error } = useApi<UsersResponse>('/api/admin/users?role=OWNER&limit=100');
+
+  const filteredOwners = useMemo(() => {
+    if (!data?.users) return [];
+
+    return data.users.filter(
+      (owner) =>
+        owner.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        owner.email?.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [data?.users, searchQuery]);
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-[400px] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-6 lg:p-8">
+        <Card className="p-12 text-center">
+          <Users className="mx-auto h-12 w-12 text-error" />
+          <h3 className="mt-4 text-lg font-medium text-error">Greška pri učitavanju</h3>
+          <p className="mt-2 text-foreground-muted">{error}</p>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 lg:p-8">
@@ -53,7 +75,7 @@ export default function AdminOwnersPage() {
         <div>
           <h1 className="text-2xl font-bold text-foreground sm:text-3xl">{t('owners')}</h1>
           <p className="mt-2 text-foreground-muted">
-            Upravljajte vlasnicima smeštajnih jedinica
+            Upravljajte vlasnicima smeštajnih jedinica ({data?.pagination.total || 0})
           </p>
         </div>
         <Button className="gap-2">
@@ -105,58 +127,68 @@ export default function AdminOwnersPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {filteredOwners.map((owner) => (
-                  <tr key={owner.id} className="hover:bg-muted/30">
-                    <td className="px-4 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
-                          <Users className="h-5 w-5 text-foreground-muted" />
-                        </div>
-                        <p className="font-medium">{owner.name}</p>
-                      </div>
-                    </td>
-                    <td className="px-4 py-4">
-                      <div className="space-y-1 text-sm">
-                        <div className="flex items-center gap-2 text-foreground-muted">
-                          <Mail className="h-4 w-4" />
-                          {owner.email}
-                        </div>
-                        <div className="flex items-center gap-2 text-foreground-muted">
-                          <Phone className="h-4 w-4" />
-                          {owner.phone}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-4">
-                      <div className="flex items-center gap-2">
-                        <Building2 className="h-4 w-4 text-foreground-muted" />
-                        <span>{owner.accommodationsCount}</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-4 text-sm">{owner.totalBookings}</td>
-                    <td className="px-4 py-4">
-                      <span
-                        className={`rounded-full px-2 py-1 text-xs font-medium ${
-                          owner.status === 'ACTIVE'
-                            ? 'bg-success/10 text-success'
-                            : 'bg-muted text-foreground-muted'
-                        }`}
-                      >
-                        {owner.status === 'ACTIVE' ? 'Aktivan' : 'Neaktivan'}
-                      </span>
-                    </td>
-                    <td className="px-4 py-4">
-                      <div className="flex justify-end gap-2">
-                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-error">
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
+                {filteredOwners.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-8 text-center text-foreground-muted">
+                      Nema pronađenih vlasnika
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  filteredOwners.map((owner) => (
+                    <tr key={owner.id} className="hover:bg-muted/30">
+                      <td className="px-4 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
+                            <Users className="h-5 w-5 text-foreground-muted" />
+                          </div>
+                          <p className="font-medium">{owner.name || 'Bez imena'}</p>
+                        </div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="space-y-1 text-sm">
+                          <div className="flex items-center gap-2 text-foreground-muted">
+                            <Mail className="h-4 w-4" />
+                            {owner.email}
+                          </div>
+                          {owner.phone && (
+                            <div className="flex items-center gap-2 text-foreground-muted">
+                              <Phone className="h-4 w-4" />
+                              {owner.phone}
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="flex items-center gap-2">
+                          <Building2 className="h-4 w-4 text-foreground-muted" />
+                          <span>{owner._count.accommodations}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-4 text-sm">{owner._count.bookings}</td>
+                      <td className="px-4 py-4">
+                        <span
+                          className={`rounded-full px-2 py-1 text-xs font-medium ${
+                            owner.isActive
+                              ? 'bg-success/10 text-success'
+                              : 'bg-muted text-foreground-muted'
+                          }`}
+                        >
+                          {owner.isActive ? 'Aktivan' : 'Neaktivan'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="flex justify-end gap-2">
+                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-error">
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>

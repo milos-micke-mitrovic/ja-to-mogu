@@ -1,69 +1,74 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useTranslations } from 'next-intl';
 import { Card, CardContent, Button, Input } from '@/components/ui';
-import { UserCircle, Search, Calendar, Phone, Mail, MessageCircle } from 'lucide-react';
+import { UserCircle, Search, Calendar, Phone, Mail, MessageCircle, Loader2 } from 'lucide-react';
 import { formatDate, getWhatsAppLink, getViberLink } from '@/lib/utils';
+import { useApi } from '@/hooks';
 
-// Mock data
-const mockClients = [
-  {
-    id: '1',
-    name: 'Marko Petrović',
-    email: 'marko@email.com',
-    phone: '+381 60 123 4567',
-    hasViber: true,
-    hasWhatsApp: true,
-    totalBookings: 3,
-    lastBooking: '2024-07-20',
-    registeredAt: '2024-03-15',
-  },
-  {
-    id: '2',
-    name: 'Ana Jovanović',
-    email: 'ana@email.com',
-    phone: '+381 63 987 6543',
-    hasViber: true,
-    hasWhatsApp: false,
-    totalBookings: 1,
-    lastBooking: '2024-07-22',
-    registeredAt: '2024-07-10',
-  },
-  {
-    id: '3',
-    name: 'Nikola Nikolić',
-    email: 'nikola@email.com',
-    phone: '+381 64 555 1234',
-    hasViber: false,
-    hasWhatsApp: true,
-    totalBookings: 2,
-    lastBooking: '2024-07-10',
-    registeredAt: '2023-06-20',
-  },
-  {
-    id: '4',
-    name: 'Jovana Đorđević',
-    email: 'jovana@email.com',
-    phone: '+381 65 111 2222',
-    hasViber: true,
-    hasWhatsApp: true,
-    totalBookings: 5,
-    lastBooking: '2024-07-19',
-    registeredAt: '2022-08-01',
-  },
-];
+interface AdminUser {
+  id: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  role: string;
+  isActive: boolean;
+  createdAt: string;
+  _count: {
+    bookings: number;
+    accommodations: number;
+    guidedBookings: number;
+  };
+}
+
+interface UsersResponse {
+  users: AdminUser[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
 
 export default function AdminClientsPage() {
   const t = useTranslations('admin');
   const [searchQuery, setSearchQuery] = useState('');
 
-  const filteredClients = mockClients.filter(
-    (client) =>
-      client.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      client.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      client.phone.includes(searchQuery)
-  );
+  // Fetch clients (users with role CLIENT)
+  const { data, isLoading, error } = useApi<UsersResponse>('/api/admin/users?role=CLIENT&limit=100');
+
+  const filteredClients = useMemo(() => {
+    if (!data?.users) return [];
+
+    return data.users.filter(
+      (client) =>
+        client.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        client.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        client.phone?.includes(searchQuery)
+    );
+  }, [data?.users, searchQuery]);
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-[400px] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-6 lg:p-8">
+        <Card className="p-12 text-center">
+          <UserCircle className="mx-auto h-12 w-12 text-error" />
+          <h3 className="mt-4 text-lg font-medium text-error">Greška pri učitavanju</h3>
+          <p className="mt-2 text-foreground-muted">{error}</p>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 lg:p-8">
@@ -71,7 +76,7 @@ export default function AdminClientsPage() {
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-foreground sm:text-3xl">{t('clientDatabase')}</h1>
         <p className="mt-2 text-foreground-muted">
-          Pregled svih registrovanih klijenata
+          Pregled svih registrovanih klijenata ({data?.pagination.total || 0})
         </p>
       </div>
 
@@ -110,7 +115,7 @@ export default function AdminClientsPage() {
                     Rezervacije
                   </th>
                   <th className="px-4 py-3 text-left text-sm font-medium text-foreground-muted">
-                    Poslednja rezervacija
+                    Registrovan
                   </th>
                   <th className="px-4 py-3 text-right text-sm font-medium text-foreground-muted">
                     Akcije
@@ -118,70 +123,80 @@ export default function AdminClientsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {filteredClients.map((client) => (
-                  <tr key={client.id} className="hover:bg-muted/30">
-                    <td className="px-4 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
-                          <UserCircle className="h-5 w-5 text-foreground-muted" />
-                        </div>
-                        <div>
-                          <p className="font-medium">{client.name}</p>
-                          <p className="text-xs text-foreground-muted">
-                            Registrovan: {formatDate(client.registeredAt)}
-                          </p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-4">
-                      <div className="space-y-1 text-sm">
-                        <div className="flex items-center gap-2 text-foreground-muted">
-                          <Mail className="h-4 w-4" />
-                          {client.email}
-                        </div>
-                        <div className="flex items-center gap-2 text-foreground-muted">
-                          <Phone className="h-4 w-4" />
-                          {client.phone}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-4">
-                      <div className="flex gap-2">
-                        {client.hasViber && (
-                          <a
-                            href={getViberLink(client.phone)}
-                            className="rounded bg-[#7360F2]/10 px-2 py-1 text-xs text-[#7360F2]"
-                          >
-                            Viber
-                          </a>
-                        )}
-                        {client.hasWhatsApp && (
-                          <a
-                            href={getWhatsAppLink(client.phone)}
-                            className="rounded bg-[#25D366]/10 px-2 py-1 text-xs text-[#25D366]"
-                          >
-                            WhatsApp
-                          </a>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-4 py-4 text-sm">{client.totalBookings}</td>
-                    <td className="px-4 py-4">
-                      <div className="flex items-center gap-2 text-sm text-foreground-muted">
-                        <Calendar className="h-4 w-4" />
-                        {formatDate(client.lastBooking)}
-                      </div>
-                    </td>
-                    <td className="px-4 py-4">
-                      <div className="flex justify-end">
-                        <Button variant="outline" size="sm" className="gap-2">
-                          <MessageCircle className="h-4 w-4" />
-                          {t('contactClient')}
-                        </Button>
-                      </div>
+                {filteredClients.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-8 text-center text-foreground-muted">
+                      Nema pronađenih klijenata
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  filteredClients.map((client) => (
+                    <tr key={client.id} className="hover:bg-muted/30">
+                      <td className="px-4 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
+                            <UserCircle className="h-5 w-5 text-foreground-muted" />
+                          </div>
+                          <div>
+                            <p className="font-medium">{client.name || 'Bez imena'}</p>
+                            <p className="text-xs text-foreground-muted">
+                              {client.isActive ? 'Aktivan' : 'Neaktivan'}
+                            </p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="space-y-1 text-sm">
+                          <div className="flex items-center gap-2 text-foreground-muted">
+                            <Mail className="h-4 w-4" />
+                            {client.email}
+                          </div>
+                          {client.phone && (
+                            <div className="flex items-center gap-2 text-foreground-muted">
+                              <Phone className="h-4 w-4" />
+                              {client.phone}
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="flex gap-2">
+                          {client.phone && (
+                            <>
+                              <a
+                                href={getViberLink(client.phone)}
+                                className="rounded bg-[#7360F2]/10 px-2 py-1 text-xs text-[#7360F2]"
+                              >
+                                Viber
+                              </a>
+                              <a
+                                href={getWhatsAppLink(client.phone)}
+                                className="rounded bg-[#25D366]/10 px-2 py-1 text-xs text-[#25D366]"
+                              >
+                                WhatsApp
+                              </a>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-4 text-sm">{client._count.bookings}</td>
+                      <td className="px-4 py-4">
+                        <div className="flex items-center gap-2 text-sm text-foreground-muted">
+                          <Calendar className="h-4 w-4" />
+                          {formatDate(client.createdAt)}
+                        </div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="flex justify-end">
+                          <Button variant="outline" size="sm" className="gap-2">
+                            <MessageCircle className="h-4 w-4" />
+                            {t('contactClient')}
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
