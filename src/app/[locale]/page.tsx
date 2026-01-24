@@ -2,6 +2,7 @@ import { useTranslations } from 'next-intl';
 import { setRequestLocale } from 'next-intl/server';
 import { Link } from '@/i18n/routing';
 import { Logo, LogoIcon } from '@/components/ui';
+import { auth } from '@/lib/auth';
 
 interface HomePageProps {
   params: Promise<{ locale: string }>;
@@ -11,33 +12,76 @@ export default async function HomePage({ params }: HomePageProps) {
   const { locale } = await params;
   setRequestLocale(locale);
 
-  return <HomeContent />;
+  const session = await auth();
+
+  return <HomeContent user={session?.user} />;
 }
 
-function HomeContent() {
+interface HomeContentProps {
+  user?: {
+    name?: string | null;
+    role?: string;
+  };
+}
+
+function HomeContent({ user }: HomeContentProps) {
   const t = useTranslations('landing');
   const tNav = useTranslations('navigation');
   const tPackages = useTranslations('packages');
+
+  // Determine dashboard URL based on role
+  const getDashboardUrl = () => {
+    switch (user?.role) {
+      case 'ADMIN': return '/admin';
+      case 'OWNER': return '/owner';
+      case 'GUIDE': return '/guide';
+      default: return '/dashboard';
+    }
+  };
 
   return (
     <div className="flex min-h-screen flex-col">
       {/* Header */}
       <header className="border-b border-border bg-background">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-          <Logo size="lg" linkToHome={false} />
-          <nav className="flex items-center gap-4">
-            <Link
-              href="/login"
-              className="text-sm font-medium text-foreground-muted hover:text-foreground"
-            >
-              {tNav('login')}
-            </Link>
-            <Link
-              href="/register"
-              className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary-hover"
-            >
-              {tNav('register')}
-            </Link>
+          {/* Logo - icon only on mobile, full on desktop */}
+          <div className="flex items-center">
+            <span className="sm:hidden">
+              <Logo size="md" linkToHome={false} showText={false} />
+            </span>
+            <span className="hidden sm:block">
+              <Logo size="lg" linkToHome={false} />
+            </span>
+          </div>
+          <nav className="flex items-center gap-2 sm:gap-4">
+            {user ? (
+              <>
+                <span className="hidden text-sm text-foreground-muted sm:inline">
+                  {user.name || 'Korisnik'}
+                </span>
+                <Link
+                  href={getDashboardUrl()}
+                  className="rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary-hover sm:px-4"
+                >
+                  {tNav('dashboard')}
+                </Link>
+              </>
+            ) : (
+              <>
+                <Link
+                  href="/login"
+                  className="text-sm font-medium text-foreground-muted hover:text-foreground"
+                >
+                  {tNav('login')}
+                </Link>
+                <Link
+                  href="/register"
+                  className="rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary-hover sm:px-4"
+                >
+                  {tNav('register')}
+                </Link>
+              </>
+            )}
           </nav>
         </div>
       </header>
@@ -226,10 +270,10 @@ function HomeContent() {
             {/* CTA Button */}
             <div className="mt-12 text-center">
               <Link
-                href="/register"
+                href={user ? getDashboardUrl() : '/register'}
                 className="inline-flex items-center justify-center rounded-xl bg-primary px-8 py-4 text-lg font-semibold text-primary-foreground shadow-lg transition-colors hover:bg-primary-hover"
               >
-                {t('registerCta')}
+                {user ? tNav('dashboard') : t('registerCta')}
               </Link>
             </div>
           </div>

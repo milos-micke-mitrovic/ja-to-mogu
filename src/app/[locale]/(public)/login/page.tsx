@@ -2,7 +2,7 @@
 
 import { Suspense, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { signIn } from 'next-auth/react';
+import { signIn, getSession } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Card,
@@ -55,7 +55,28 @@ function LoginForm() {
       if (result?.error) {
         setFormError(t('invalidCredentials'));
       } else {
-        router.push(callbackUrl as Parameters<typeof router.push>[0]);
+        // Get session to determine role-based redirect
+        const session = await getSession();
+        let redirectUrl = callbackUrl;
+
+        // If no explicit callback, redirect based on role
+        if (callbackUrl === '/dashboard' && session?.user?.role) {
+          switch (session.user.role) {
+            case 'ADMIN':
+              redirectUrl = '/admin';
+              break;
+            case 'OWNER':
+              redirectUrl = '/owner';
+              break;
+            case 'GUIDE':
+              redirectUrl = '/guide';
+              break;
+            default:
+              redirectUrl = '/dashboard';
+          }
+        }
+
+        router.push(redirectUrl as Parameters<typeof router.push>[0]);
         router.refresh();
       }
     } catch {

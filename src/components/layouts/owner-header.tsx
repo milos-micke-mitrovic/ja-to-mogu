@@ -42,9 +42,14 @@ export function OwnerHeader({ user }: OwnerHeaderProps) {
     <header className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between">
-          {/* Logo */}
+          {/* Logo - icon only on mobile */}
           <div className="flex items-center gap-2">
-            <Logo size="md" />
+            <span className="sm:hidden">
+              <Logo size="sm" showText={false} />
+            </span>
+            <span className="hidden sm:block">
+              <Logo size="md" />
+            </span>
             <span className="hidden rounded bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 sm:inline">
               Vlasnik
             </span>

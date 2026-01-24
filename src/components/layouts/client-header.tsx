@@ -29,8 +29,13 @@ export function ClientHeader({ user }: ClientHeaderProps) {
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-        {/* Logo */}
-        <Logo size="md" />
+        {/* Logo - icon only on mobile */}
+        <span className="sm:hidden">
+          <Logo size="sm" showText={false} />
+        </span>
+        <span className="hidden sm:block">
+          <Logo size="md" />
+        </span>
 
         {/* Navigation */}
         <nav className="hidden items-center gap-1 md:flex">
