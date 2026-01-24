@@ -35,16 +35,20 @@ import type { Accommodation } from '@/hooks';
 import { ALL_DESTINATIONS } from '@/lib/constants';
 
 interface TravelFormData {
+  name: string;
+  email: string;
+  phone: string;
+  address?: string;
   arrivalDate: string;
   arrivalTime: string;
   duration: string;
   destination?: string;
+  hasViber?: boolean;
+  hasWhatsApp?: boolean;
+  // Legacy field names (in case stored with old format)
   guestName?: string;
   guestPhone?: string;
   guestEmail?: string;
-  hasViber?: boolean;
-  hasWhatsApp?: boolean;
-  packageType?: string;
 }
 
 function BookingConfirmationContent() {
@@ -81,6 +85,10 @@ function BookingConfirmationContent() {
         ? new Date().toISOString()
         : new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 
+      // Get package data from session
+      const paymentData = sessionStorage.getItem('paymentData');
+      const packageData = paymentData ? JSON.parse(paymentData) : { packageType: 'BASIC' };
+
       // Create booking via API
       const response = await fetch('/api/bookings', {
         method: 'POST',
@@ -89,13 +97,17 @@ function BookingConfirmationContent() {
           accommodationId: accommodation.id,
           arrivalDate,
           arrivalTime: travelData.arrivalTime,
-          duration: travelData.duration,
-          packageType: travelData.packageType || 'BASIC',
-          guestName: travelData.guestName || '',
-          guestPhone: travelData.guestPhone || '',
-          guestEmail: travelData.guestEmail || '',
-          hasViber: travelData.hasViber || false,
-          hasWhatsApp: travelData.hasWhatsApp || false,
+          packageType: packageData.packageType || 'BASIC',
+          totalPrice,
+          travelFormData: {
+            name: travelData.guestName || travelData.name || '',
+            email: travelData.guestEmail || travelData.email || '',
+            phone: travelData.guestPhone || travelData.phone || '',
+            address: travelData.address || '',
+            duration: travelData.duration,
+            hasViber: travelData.hasViber || false,
+            hasWhatsApp: travelData.hasWhatsApp || false,
+          },
         }),
       });
 
