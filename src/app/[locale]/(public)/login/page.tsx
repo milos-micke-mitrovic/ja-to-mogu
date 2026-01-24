@@ -18,6 +18,7 @@ import {
 } from '@/components/ui';
 import { Mail, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import { Link } from '@/i18n/routing';
+import { AuthHeader } from '@/components/layouts/auth-header';
 
 function LoginForm() {
   const t = useTranslations('auth');
@@ -77,9 +78,6 @@ function LoginForm() {
   return (
     <Card className="w-full max-w-md">
       <CardHeader className="text-center">
-        <Link href="/" className="mb-4 inline-block">
-          <span className="text-2xl font-bold text-primary">Ja To Mogu</span>
-        </Link>
         <CardTitle className="text-2xl">{t('loginTitle')}</CardTitle>
         <CardDescription>{t('loginDescription')}</CardDescription>
       </CardHeader>
@@ -206,7 +204,8 @@ function LoginFormFallback() {
 
 export default function LoginPage() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background-secondary px-4 py-12">
+    <div className="relative flex min-h-screen items-center justify-center bg-background-secondary px-4 py-12">
+      <AuthHeader />
       <Suspense fallback={<LoginFormFallback />}>
         <LoginForm />
       </Suspense>

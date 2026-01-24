@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { signOut } from 'next-auth/react';
 import { Link } from '@/i18n/routing';
-import { Button } from '@/components/ui';
+import { Button, Logo } from '@/components/ui';
 import {
   Home,
   Building2,
@@ -43,15 +43,12 @@ export function OwnerHeader({ user }: OwnerHeaderProps) {
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between">
           {/* Logo */}
-          <Link href="/owner" className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-              <Building2 className="h-5 w-5 text-primary-foreground" />
-            </div>
-            <span className="text-lg font-bold text-foreground">Ja To Mogu</span>
+          <div className="flex items-center gap-2">
+            <Logo size="md" />
             <span className="hidden rounded bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 sm:inline">
               Vlasnik
             </span>
-          </Link>
+          </div>
 
           {/* Desktop Navigation */}
           <nav className="hidden items-center gap-1 md:flex">

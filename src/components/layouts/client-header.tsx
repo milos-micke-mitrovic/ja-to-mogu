@@ -3,7 +3,7 @@
 import { useTranslations } from 'next-intl';
 import { signOut } from 'next-auth/react';
 import { Link, usePathname } from '@/i18n/routing';
-import { Button } from '@/components/ui';
+import { Button, Logo } from '@/components/ui';
 import { LogOut, User, Home, Package, History } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -30,9 +30,7 @@ export function ClientHeader({ user }: ClientHeaderProps) {
     <header className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         {/* Logo */}
-        <Link href="/dashboard" className="flex items-center gap-2">
-          <span className="text-xl font-bold text-primary">Ja To Mogu</span>
-        </Link>
+        <Logo size="md" />
 
         {/* Navigation */}
         <nav className="hidden items-center gap-1 md:flex">

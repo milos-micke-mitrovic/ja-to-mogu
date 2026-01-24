@@ -17,6 +17,7 @@ import {
 } from '@/components/ui';
 import { Mail, Lock, Eye, EyeOff, AlertCircle, User, Check } from 'lucide-react';
 import { Link } from '@/i18n/routing';
+import { AuthHeader } from '@/components/layouts/auth-header';
 
 export default function RegisterPage() {
   const t = useTranslations('auth');
@@ -112,7 +113,8 @@ export default function RegisterPage() {
 
   if (isSuccess) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background-secondary px-4 py-12">
+      <div className="relative flex min-h-screen items-center justify-center bg-background-secondary px-4 py-12">
+        <AuthHeader />
         <Card className="w-full max-w-md text-center">
           <CardContent className="pt-8">
             <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-success/10">
@@ -127,12 +129,10 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background-secondary px-4 py-12">
+    <div className="relative flex min-h-screen items-center justify-center bg-background-secondary px-4 py-12">
+      <AuthHeader />
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <Link href="/" className="mb-4 inline-block">
-            <span className="text-2xl font-bold text-primary">Ja To Mogu</span>
-          </Link>
           <CardTitle className="text-2xl">{t('registerTitle')}</CardTitle>
           <CardDescription>{t('registerDescription')}</CardDescription>
         </CardHeader>

@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { signOut } from 'next-auth/react';
 import { Link } from '@/i18n/routing';
-import { Button } from '@/components/ui';
+import { Button, Logo } from '@/components/ui';
 import {
   LayoutDashboard,
   Building2,
@@ -47,14 +47,11 @@ export function AdminSidebar({ user }: AdminSidebarProps) {
   const SidebarContent = () => (
     <>
       {/* Logo */}
-      <div className="flex h-16 items-center gap-3 border-b border-border px-6">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-          <Shield className="h-5 w-5 text-primary-foreground" />
-        </div>
-        <div>
-          <span className="text-lg font-bold text-foreground">Admin</span>
-          <p className="text-xs text-foreground-muted">Ja To Mogu</p>
-        </div>
+      <div className="flex h-16 items-center gap-2 border-b border-border px-6">
+        <Logo size="md" />
+        <span className="rounded bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-800">
+          Admin
+        </span>
       </div>
 
       {/* Navigation */}

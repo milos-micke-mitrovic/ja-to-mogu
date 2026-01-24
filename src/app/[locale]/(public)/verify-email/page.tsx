@@ -9,6 +9,7 @@ import {
 } from '@/components/ui';
 import { CheckCircle, AlertCircle, Loader2, Mail } from 'lucide-react';
 import { Link } from '@/i18n/routing';
+import { AuthHeader } from '@/components/layouts/auth-header';
 
 function VerifyEmailContent() {
   const searchParams = useSearchParams();
@@ -47,7 +48,8 @@ function VerifyEmailContent() {
 
   if (status === 'loading') {
     return (
-      <div className="flex min-h-screen items-center justify-center px-4 py-12">
+      <div className="relative flex min-h-screen items-center justify-center px-4 py-12">
+        <AuthHeader />
         <Card className="w-full max-w-md">
           <CardContent className="flex flex-col items-center py-12 text-center">
             <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -63,7 +65,8 @@ function VerifyEmailContent() {
 
   if (status === 'success') {
     return (
-      <div className="flex min-h-screen items-center justify-center px-4 py-12">
+      <div className="relative flex min-h-screen items-center justify-center px-4 py-12">
+        <AuthHeader />
         <Card className="w-full max-w-md">
           <CardContent className="flex flex-col items-center py-12 text-center">
             <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-success/10">
@@ -85,7 +88,8 @@ function VerifyEmailContent() {
 
   if (status === 'invalid') {
     return (
-      <div className="flex min-h-screen items-center justify-center px-4 py-12">
+      <div className="relative flex min-h-screen items-center justify-center px-4 py-12">
+        <AuthHeader />
         <Card className="w-full max-w-md">
           <CardContent className="flex flex-col items-center py-12 text-center">
             <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-warning/10">
@@ -109,7 +113,7 @@ function VerifyEmailContent() {
 
   // Error state
   return (
-    <div className="flex min-h-screen items-center justify-center px-4 py-12">
+    <div className="relative flex min-h-screen items-center justify-center px-4 py-12">
       <Card className="w-full max-w-md">
         <CardContent className="flex flex-col items-center py-12 text-center">
           <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-error/10">

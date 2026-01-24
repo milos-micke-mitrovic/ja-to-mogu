@@ -15,3 +15,4 @@ export {
 } from './select';
 export { Separator } from './separator';
 export { Spinner } from './spinner';
+export { Logo } from './logo';

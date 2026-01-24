@@ -17,6 +17,7 @@ import {
 } from '@/components/ui';
 import { Lock, ArrowLeft, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
 import { Link } from '@/i18n/routing';
+import { AuthHeader } from '@/components/layouts/auth-header';
 
 const resetPasswordSchema = z
   .object({
@@ -84,7 +85,8 @@ function ResetPasswordForm() {
 
   if (isSuccess) {
     return (
-      <div className="flex min-h-screen items-center justify-center px-4 py-12">
+      <div className="relative flex min-h-screen items-center justify-center px-4 py-12">
+        <AuthHeader />
         <Card className="w-full max-w-md">
           <CardContent className="flex flex-col items-center py-12 text-center">
             <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-success/10">
@@ -107,7 +109,8 @@ function ResetPasswordForm() {
 
   if (!token) {
     return (
-      <div className="flex min-h-screen items-center justify-center px-4 py-12">
+      <div className="relative flex min-h-screen items-center justify-center px-4 py-12">
+        <AuthHeader />
         <Card className="w-full max-w-md">
           <CardContent className="flex flex-col items-center py-12 text-center">
             <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-error/10">
@@ -129,7 +132,8 @@ function ResetPasswordForm() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-4 py-12">
+    <div className="relative flex min-h-screen items-center justify-center px-4 py-12">
+      <AuthHeader />
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
