@@ -384,3 +384,131 @@ export async function sendOwnerBookingNotification(
     return { success: false, error: 'Greška pri slanju emaila' };
   }
 }
+
+// Journey status update notification
+interface JourneyNotificationData {
+  recipientEmail: string;
+  recipientName: string;
+  recipientRole: 'OWNER' | 'GUIDE';
+  guestName: string;
+  guestPhone: string;
+  accommodationName: string;
+  journeyStatus: string;
+  arrivalDate: string;
+}
+
+function getJourneyStatusMessage(status: string): { title: string; description: string } {
+  switch (status) {
+    case 'DEPARTED':
+      return {
+        title: 'Gost je krenuo na put!',
+        description: 'Gost je krenuo iz Srbije prema Grčkoj.',
+      };
+    case 'IN_GREECE':
+      return {
+        title: 'Gost je stigao u Grčku!',
+        description: 'Gost je prešao granicu i uskoro stiže na destinaciju.',
+      };
+    case 'ARRIVED':
+      return {
+        title: 'Gost je stigao!',
+        description: 'Gost je stigao na destinaciju.',
+      };
+    default:
+      return {
+        title: 'Status putovanja ažuriran',
+        description: 'Status putovanja je promenjen.',
+      };
+  }
+}
+
+export async function sendJourneyStatusNotification(
+  data: JourneyNotificationData
+): Promise<EmailResult> {
+  const statusMessage = getJourneyStatusMessage(data.journeyStatus);
+  const dashboardUrl = data.recipientRole === 'OWNER'
+    ? `${APP_URL}/sr/owner/bookings`
+    : `${APP_URL}/sr/guide/bookings`;
+
+  try {
+    const { error } = await resend.emails.send({
+      from: FROM_EMAIL,
+      to: data.recipientEmail,
+      subject: `${statusMessage.title} - ${data.accommodationName}`,
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        </head>
+        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <div style="text-align: center; margin-bottom: 30px;">
+            <h1 style="color: #F5B800; margin: 0;">Ja To Mogu</h1>
+            <p style="color: #666; margin-top: 5px;">Obaveštenje o putovanju</p>
+          </div>
+
+          <div style="background-color: #F5B800; color: #000; padding: 15px; border-radius: 8px; text-align: center; margin-bottom: 25px;">
+            <h2 style="margin: 0;">${statusMessage.title}</h2>
+          </div>
+
+          <p>Pozdrav ${data.recipientName},</p>
+
+          <p>${statusMessage.description}</p>
+
+          <div style="background-color: #f9f9f9; border-radius: 8px; padding: 20px; margin: 20px 0;">
+            <h3 style="margin-top: 0; color: #333;">Detalji</h3>
+
+            <table style="width: 100%; font-size: 14px;">
+              <tr>
+                <td style="padding: 5px 0; color: #666;">Smeštaj:</td>
+                <td style="padding: 5px 0; text-align: right; font-weight: 600;">${data.accommodationName}</td>
+              </tr>
+              <tr>
+                <td style="padding: 5px 0; color: #666;">Gost:</td>
+                <td style="padding: 5px 0; text-align: right; font-weight: 600;">${data.guestName}</td>
+              </tr>
+              <tr>
+                <td style="padding: 5px 0; color: #666;">Telefon gosta:</td>
+                <td style="padding: 5px 0; text-align: right; font-weight: 600;">${data.guestPhone}</td>
+              </tr>
+              <tr>
+                <td style="padding: 5px 0; color: #666;">Datum dolaska:</td>
+                <td style="padding: 5px 0; text-align: right; font-weight: 600;">${data.arrivalDate}</td>
+              </tr>
+            </table>
+          </div>
+
+          ${data.journeyStatus === 'ARRIVED' ? `
+          <p style="color: #10B981; font-weight: 600;">
+            Gost je stigao na destinaciju. Molimo proverite da li je sve u redu sa smeštajem.
+          </p>
+          ` : ''}
+
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${dashboardUrl}" style="background-color: #F5B800; color: #000; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: 600; display: inline-block;">
+              Pogledajte rezervacije
+            </a>
+          </div>
+
+          <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+
+          <p style="color: #999; font-size: 12px; text-align: center;">
+            Ovo je automatsko obaveštenje sa platforme Ja To Mogu.
+          </p>
+        </body>
+        </html>
+      `,
+    });
+
+    if (error) {
+      console.error('Email send error:', error);
+      return { success: false, error: error.message };
+    }
+
+    return { success: true };
+  } catch (err) {
+    console.error('Email service error:', err);
+    return { success: false, error: 'Greška pri slanju emaila' };
+  }
+}

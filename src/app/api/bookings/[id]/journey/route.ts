@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { auth } from '@/lib/auth';
+import { sendJourneyStatusNotification } from '@/lib/email';
+import { formatDate } from '@/lib/utils';
 
 // PATCH - Update journey status
 export async function PATCH(
@@ -34,11 +36,18 @@ export async function PATCH(
     const booking = await prisma.booking.findUnique({
       where: { id },
       include: {
+        user: {
+          select: {
+            name: true,
+            phone: true,
+          },
+        },
         guide: {
           select: {
             id: true,
             name: true,
             phone: true,
+            email: true,
           },
         },
         accommodation: {
@@ -48,6 +57,7 @@ export async function PATCH(
                 id: true,
                 name: true,
                 phone: true,
+                email: true,
               },
             },
           },
@@ -95,7 +105,38 @@ export async function PATCH(
       },
     });
 
-    // TODO: Send notifications to owner/guide based on status change
+    // Send notifications to owner and guide based on status change
+    const guestName = booking.user?.name || 'Gost';
+    const guestPhone = booking.user?.phone || 'N/A';
+    const arrivalDate = formatDate(booking.arrivalDate);
+
+    // Notify the accommodation owner
+    if (booking.accommodation.owner?.email) {
+      await sendJourneyStatusNotification({
+        recipientEmail: booking.accommodation.owner.email,
+        recipientName: booking.accommodation.owner.name || 'Vlasniče',
+        recipientRole: 'OWNER',
+        guestName,
+        guestPhone,
+        accommodationName: booking.accommodation.name,
+        journeyStatus,
+        arrivalDate,
+      });
+    }
+
+    // Notify the guide if assigned
+    if (booking.guide?.email) {
+      await sendJourneyStatusNotification({
+        recipientEmail: booking.guide.email,
+        recipientName: booking.guide.name || 'Vodiče',
+        recipientRole: 'GUIDE',
+        guestName,
+        guestPhone,
+        accommodationName: booking.accommodation.name,
+        journeyStatus,
+        arrivalDate,
+      });
+    }
 
     return NextResponse.json(updatedBooking);
   } catch (error) {
