@@ -17,7 +17,6 @@ import {
   LogOut,
   Menu,
   X,
-  Shield,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -102,15 +101,16 @@ export function AdminSidebar({ user }: AdminSidebarProps) {
 
       {/* Mobile Header */}
       <div className="fixed left-0 right-0 top-0 z-50 flex h-16 items-center justify-between border-b border-border bg-background px-4 lg:hidden">
-        <div className="flex items-center gap-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-            <Shield className="h-5 w-5 text-primary-foreground" />
-          </div>
-          <span className="text-lg font-bold text-foreground">Admin</span>
+        <div className="flex items-center gap-2">
+          <Logo size="sm" />
+          <span className="rounded bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-800">
+            Admin
+          </span>
         </div>
         <button
           onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
           className="flex items-center justify-center rounded-lg p-2 text-foreground-muted hover:bg-muted"
+          aria-label={isMobileMenuOpen ? 'Zatvori meni' : 'Otvori meni'}
         >
           {isMobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
         </button>
