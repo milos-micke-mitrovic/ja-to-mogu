@@ -21,7 +21,6 @@ import {
   Bed,
   Home,
   Pencil,
-  Eye,
   Car,
   Wifi,
   Wind,
@@ -183,12 +182,11 @@ export default function OwnerAccommodationsPage() {
                 </div>
                 {/* Actions Menu */}
                 <div className="absolute right-3 top-3 flex gap-2 opacity-0 transition-opacity group-hover:opacity-100">
-                  <Button size="sm" variant="secondary" className="h-8 w-8 p-0">
-                    <Eye className="h-4 w-4" />
-                  </Button>
-                  <Button size="sm" variant="secondary" className="h-8 w-8 p-0">
-                    <Pencil className="h-4 w-4" />
-                  </Button>
+                  <Link href={`/owner/accommodations/${accommodation.id}/edit`}>
+                    <Button size="sm" variant="secondary" className="h-8 w-8 p-0">
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                  </Link>
                 </div>
               </div>
 
