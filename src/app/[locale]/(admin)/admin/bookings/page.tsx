@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
+import { ColumnDef } from '@tanstack/react-table';
 import {
   Card,
   CardContent,
@@ -12,6 +13,8 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  DataTable,
+  SimpleTooltip,
 } from '@/components/ui';
 import {
   Calendar,
@@ -22,13 +25,13 @@ import {
   Clock,
   Check,
   X,
-  Phone,
-  MessageCircle,
   Loader2,
 } from 'lucide-react';
-import { formatPrice, formatDate, getWhatsAppLink, getViberLink } from '@/lib/utils';
+import { formatPrice, formatDate } from '@/lib/utils';
 import { cn } from '@/lib/utils';
 import { useApi } from '@/hooks';
+import { useDebouncedCallback } from 'use-debounce';
+import { BookingDetailDialog } from '@/components/admin/booking-detail-dialog';
 
 interface AdminBooking {
   id: string;
@@ -78,70 +81,209 @@ interface BookingsResponse {
   };
 }
 
+const PAGE_SIZE = 10;
+
+const getStatusColor = (status: string) => {
+  switch (status) {
+    case 'PENDING':
+      return 'bg-warning/10 text-warning';
+    case 'CONFIRMED':
+      return 'bg-success/10 text-success';
+    case 'COMPLETED':
+      return 'bg-muted text-foreground-muted';
+    case 'CANCELLED':
+      return 'bg-error/10 text-error';
+    default:
+      return 'bg-muted text-foreground-muted';
+  }
+};
+
+const getStatusLabel = (status: string) => {
+  switch (status) {
+    case 'PENDING':
+      return 'Na čekanju';
+    case 'CONFIRMED':
+      return 'Potvrđeno';
+    case 'COMPLETED':
+      return 'Završeno';
+    case 'CANCELLED':
+      return 'Otkazano';
+    default:
+      return status;
+  }
+};
+
+const getStatusIcon = (status: string) => {
+  switch (status) {
+    case 'PENDING':
+      return <Clock className="h-3 w-3" />;
+    case 'CONFIRMED':
+      return <Check className="h-3 w-3" />;
+    case 'COMPLETED':
+      return <Check className="h-3 w-3" />;
+    case 'CANCELLED':
+      return <X className="h-3 w-3" />;
+    default:
+      return null;
+  }
+};
+
 export default function AdminBookingsPage() {
   const t = useTranslations('admin');
+  const [page, setPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [expandedBooking, setExpandedBooking] = useState<string | null>(null);
+  const [detailDialog, setDetailDialog] = useState<{
+    open: boolean;
+    booking: AdminBooking | null;
+  }>({
+    open: false,
+    booking: null,
+  });
 
-  // Fetch bookings
-  const { data, isLoading, error } = useApi<BookingsResponse>('/api/admin/bookings?limit=100');
-
-  // Calculate stats
-  const stats = useMemo(() => {
-    if (!data?.bookings) return { pending: 0, confirmed: 0, completed: 0, cancelled: 0 };
-
-    return {
-      pending: data.bookings.filter((b) => b.status === 'PENDING').length,
-      confirmed: data.bookings.filter((b) => b.status === 'CONFIRMED').length,
-      completed: data.bookings.filter((b) => b.status === 'COMPLETED').length,
-      cancelled: data.bookings.filter((b) => b.status === 'CANCELLED').length,
-    };
-  }, [data?.bookings]);
-
-  const filteredBookings = useMemo(() => {
-    if (!data?.bookings) return [];
-
-    return data.bookings.filter((booking) => {
-      const matchesSearch =
-        booking.guestName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        booking.accommodation?.name?.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesStatus = statusFilter === 'all' || booking.status === statusFilter;
-      return matchesSearch && matchesStatus;
-    });
-  }, [data?.bookings, searchQuery, statusFilter]);
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'PENDING':
-        return 'bg-warning/10 text-warning';
-      case 'CONFIRMED':
-        return 'bg-success/10 text-success';
-      case 'COMPLETED':
-        return 'bg-muted text-foreground-muted';
-      case 'CANCELLED':
-        return 'bg-error/10 text-error';
-      default:
-        return 'bg-muted text-foreground-muted';
-    }
+  const openDetailDialog = (booking: AdminBooking) => {
+    setDetailDialog({ open: true, booking });
   };
 
-  const getStatusLabel = (status: string) => {
-    switch (status) {
-      case 'PENDING':
-        return t('pendingBookings');
-      case 'CONFIRMED':
-        return t('confirmedBookings');
-      case 'COMPLETED':
-        return t('completedBookings');
-      case 'CANCELLED':
-        return t('cancelledBookings');
-      default:
-        return status;
+  const columns: ColumnDef<AdminBooking>[] = [
+    {
+      accessorKey: 'guestName',
+      header: 'Gost',
+      cell: ({ row }) => (
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
+            <User className="h-5 w-5 text-foreground-muted" />
+          </div>
+          <div>
+            <p className="font-medium">{row.original.guestName}</p>
+            <p className="text-xs text-foreground-muted">{row.original.guestPhone}</p>
+          </div>
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'accommodation.name',
+      header: 'Smeštaj',
+      cell: ({ row }) => (
+        <div className="flex items-center gap-2 text-sm">
+          <Building2 className="h-4 w-4 text-foreground-muted" />
+          <div>
+            <p>{row.original.accommodation?.name || 'N/A'}</p>
+            <p className="text-xs text-foreground-muted">{row.original.accommodation?.destination}</p>
+          </div>
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'arrivalDate',
+      header: 'Dolazak',
+      cell: ({ row }) => (
+        <div className="flex items-center gap-2 text-sm">
+          <Calendar className="h-4 w-4 text-foreground-muted" />
+          <div>
+            <p>{formatDate(row.original.arrivalDate)}</p>
+            <p className="text-xs text-foreground-muted">{row.original.arrivalTime}</p>
+          </div>
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'packageType',
+      header: 'Paket',
+      cell: ({ row }) => (
+        <span
+          className={cn(
+            'rounded-full px-2 py-0.5 text-xs font-medium',
+            row.original.packageType === 'BONUS'
+              ? 'bg-primary/10 text-primary'
+              : 'bg-muted text-foreground-muted'
+          )}
+        >
+          {row.original.packageType}
+        </span>
+      ),
+    },
+    {
+      accessorKey: 'status',
+      header: 'Status',
+      cell: ({ row }) => (
+        <span
+          className={cn(
+            'flex w-fit items-center gap-1 rounded-full px-2 py-1 text-xs font-medium',
+            getStatusColor(row.original.status)
+          )}
+        >
+          {getStatusIcon(row.original.status)}
+          {getStatusLabel(row.original.status)}
+        </span>
+      ),
+    },
+    {
+      accessorKey: 'totalPrice',
+      header: 'Cena',
+      cell: ({ row }) => (
+        <span className="font-bold text-primary">{formatPrice(row.original.totalPrice)}</span>
+      ),
+    },
+    {
+      id: 'actions',
+      header: () => <span className="sr-only">Akcije</span>,
+      enableSorting: false,
+      cell: ({ row }) => (
+        <div className="flex justify-end">
+          <SimpleTooltip content="Pregled">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 p-0"
+              onClick={() => openDetailDialog(row.original)}
+            >
+              <Eye className="h-4 w-4" />
+            </Button>
+          </SimpleTooltip>
+        </div>
+      ),
+    },
+  ];
+
+  const buildApiUrl = useCallback(() => {
+    const params = new URLSearchParams();
+    params.set('page', page.toString());
+    params.set('limit', PAGE_SIZE.toString());
+
+    if (debouncedSearch) {
+      params.set('search', debouncedSearch);
     }
+    if (statusFilter !== 'all') {
+      params.set('status', statusFilter);
+    }
+
+    return `/api/admin/bookings?${params.toString()}`;
+  }, [page, debouncedSearch, statusFilter]);
+
+  const { data, isLoading, error } = useApi<BookingsResponse>(buildApiUrl());
+
+  const debouncedSetSearch = useDebouncedCallback((value: string) => {
+    setDebouncedSearch(value);
+    setPage(1);
+  }, 300);
+
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value);
+    debouncedSetSearch(value);
   };
 
-  if (isLoading) {
+  const handleStatusChange = (value: string) => {
+    setStatusFilter(value);
+    setPage(1);
+  };
+
+  const handlePageChange = (newPage: number) => {
+    setPage(newPage + 1);
+  };
+
+  if (isLoading && !data) {
     return (
       <div className="flex min-h-[400px] items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -161,54 +303,16 @@ export default function AdminBookingsPage() {
     );
   }
 
+  const pagination = data?.pagination ?? { page: 1, limit: PAGE_SIZE, total: 0, totalPages: 0 };
+
   return (
     <div className="p-6 lg:p-8">
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-foreground sm:text-3xl">{t('allBookings')}</h1>
         <p className="mt-2 text-foreground-muted">
-          Pregled svih rezervacija u sistemu ({data?.pagination.total || 0})
+          Pregled svih rezervacija u sistemu ({pagination.total})
         </p>
-      </div>
-
-      {/* Stats */}
-      <div className="mb-6 grid gap-4 sm:grid-cols-4">
-        <Card>
-          <CardContent className="flex items-center gap-3 p-4">
-            <Clock className="h-5 w-5 text-warning" />
-            <div>
-              <p className="text-sm text-foreground-muted">Na čekanju</p>
-              <p className="text-xl font-bold">{stats.pending}</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="flex items-center gap-3 p-4">
-            <Check className="h-5 w-5 text-success" />
-            <div>
-              <p className="text-sm text-foreground-muted">Potvrđene</p>
-              <p className="text-xl font-bold">{stats.confirmed}</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="flex items-center gap-3 p-4">
-            <Calendar className="h-5 w-5 text-foreground-muted" />
-            <div>
-              <p className="text-sm text-foreground-muted">Završene</p>
-              <p className="text-xl font-bold">{stats.completed}</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="flex items-center gap-3 p-4">
-            <X className="h-5 w-5 text-error" />
-            <div>
-              <p className="text-sm text-foreground-muted">Otkazane</p>
-              <p className="text-xl font-bold">{stats.cancelled}</p>
-            </div>
-          </CardContent>
-        </Card>
       </div>
 
       {/* Filters */}
@@ -219,172 +323,49 @@ export default function AdminBookingsPage() {
             <Input
               placeholder="Pretraži po klijentu ili smeštaju..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => handleSearchChange(e.target.value)}
               className="pl-10"
             />
           </div>
           <div className="w-full sm:w-48">
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <Select value={statusFilter} onValueChange={handleStatusChange}>
               <SelectTrigger>
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Svi statusi</SelectItem>
-                <SelectItem value="PENDING">{t('pendingBookings')}</SelectItem>
-                <SelectItem value="CONFIRMED">{t('confirmedBookings')}</SelectItem>
-                <SelectItem value="COMPLETED">{t('completedBookings')}</SelectItem>
-                <SelectItem value="CANCELLED">{t('cancelledBookings')}</SelectItem>
+                <SelectItem value="PENDING">Na čekanju</SelectItem>
+                <SelectItem value="CONFIRMED">Potvrđeno</SelectItem>
+                <SelectItem value="COMPLETED">Završeno</SelectItem>
+                <SelectItem value="CANCELLED">Otkazano</SelectItem>
               </SelectContent>
             </Select>
           </div>
         </CardContent>
       </Card>
 
-      {/* Bookings List */}
-      {filteredBookings.length === 0 ? (
-        <Card className="p-12 text-center">
-          <Calendar className="mx-auto h-12 w-12 text-foreground-muted" />
-          <h3 className="mt-4 text-lg font-medium">Nema pronađenih rezervacija</h3>
-          <p className="mt-2 text-foreground-muted">
-            {searchQuery || statusFilter !== 'all'
-              ? 'Probajte sa drugim filterima'
-              : 'Još nema rezervacija u sistemu'}
-          </p>
-        </Card>
-      ) : (
-        <div className="space-y-4">
-          {filteredBookings.map((booking) => (
-            <Card key={booking.id} className="overflow-hidden">
-              <CardContent className="p-0">
-                {/* Main Row */}
-                <div
-                  className="flex cursor-pointer flex-col gap-4 p-4 transition-colors hover:bg-muted/50 sm:flex-row sm:items-center sm:justify-between"
-                  onClick={() =>
-                    setExpandedBooking(expandedBooking === booking.id ? null : booking.id)
-                  }
-                >
-                  <div className="flex items-start gap-4">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
-                      <User className="h-6 w-6 text-foreground-muted" />
-                    </div>
-                    <div>
-                      <p className="font-semibold">{booking.guestName}</p>
-                      <div className="mt-1 flex flex-wrap items-center gap-3 text-sm text-foreground-muted">
-                        <span className="flex items-center gap-1">
-                          <Building2 className="h-4 w-4" />
-                          {booking.accommodation?.name || 'N/A'}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Calendar className="h-4 w-4" />
-                          {formatDate(booking.arrivalDate)}
-                        </span>
-                        <span
-                          className={cn(
-                            'rounded-full px-2 py-0.5 text-xs font-medium',
-                            booking.packageType === 'BONUS'
-                              ? 'bg-primary/10 text-primary'
-                              : 'bg-muted text-foreground-muted'
-                          )}
-                        >
-                          {booking.packageType}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
+      {/* Bookings Table */}
+      <Card>
+        <CardContent className="p-0">
+          <DataTable
+            columns={columns}
+            data={data?.bookings ?? []}
+            pageIndex={pagination.page - 1}
+            pageSize={pagination.limit}
+            pageCount={pagination.totalPages}
+            totalItems={pagination.total}
+            onPageChange={handlePageChange}
+            emptyMessage="Nema pronađenih rezervacija"
+          />
+        </CardContent>
+      </Card>
 
-                  <div className="flex items-center gap-4">
-                    <span
-                      className={cn(
-                        'rounded-full px-3 py-1 text-xs font-medium',
-                        getStatusColor(booking.status)
-                      )}
-                    >
-                      {getStatusLabel(booking.status)}
-                    </span>
-                    <span className="text-lg font-bold text-primary">
-                      {formatPrice(booking.totalPrice)}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Expanded Details */}
-                {expandedBooking === booking.id && (
-                  <div className="border-t border-border bg-muted/30 p-4">
-                    <div className="grid gap-6 md:grid-cols-3">
-                      {/* Client */}
-                      <div>
-                        <h4 className="mb-3 font-semibold">Klijent</h4>
-                        <div className="space-y-2 text-sm">
-                          <p>{booking.guestName}</p>
-                          <p className="text-foreground-muted">{booking.guestPhone}</p>
-                          <p className="text-foreground-muted">{booking.guestEmail}</p>
-                          <div className="flex gap-2">
-                            {booking.hasViber && booking.guestPhone && (
-                              <a
-                                href={getViberLink(booking.guestPhone)}
-                                className="rounded bg-[#7360F2]/10 px-2 py-1 text-xs text-[#7360F2]"
-                              >
-                                <Phone className="mr-1 inline h-3 w-3" />
-                                Viber
-                              </a>
-                            )}
-                            {booking.hasWhatsApp && booking.guestPhone && (
-                              <a
-                                href={getWhatsAppLink(booking.guestPhone)}
-                                className="rounded bg-[#25D366]/10 px-2 py-1 text-xs text-[#25D366]"
-                              >
-                                <MessageCircle className="mr-1 inline h-3 w-3" />
-                                WhatsApp
-                              </a>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Accommodation */}
-                      <div>
-                        <h4 className="mb-3 font-semibold">Smeštaj</h4>
-                        <div className="space-y-2 text-sm">
-                          <p>{booking.accommodation?.name || 'N/A'}</p>
-                          <p className="text-foreground-muted">
-                            Vlasnik: {booking.accommodation?.owner?.name || 'N/A'}
-                          </p>
-                          <p className="text-foreground-muted">
-                            {formatDate(booking.arrivalDate)} u {booking.arrivalTime}
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Guide & Actions */}
-                      <div>
-                        <h4 className="mb-3 font-semibold">Vodič</h4>
-                        <div className="space-y-2 text-sm">
-                          {booking.guide ? (
-                            <>
-                              <p>{booking.guide.name}</p>
-                              {booking.guide.phone && (
-                                <p className="text-foreground-muted">{booking.guide.phone}</p>
-                              )}
-                            </>
-                          ) : (
-                            <p className="text-foreground-muted">Bez vodiča (Basic paket)</p>
-                          )}
-                        </div>
-                        <div className="mt-4 flex gap-2">
-                          <Button size="sm" variant="outline" className="gap-1">
-                            <Eye className="h-4 w-4" />
-                            Detalji
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
+      {/* Booking Detail Dialog */}
+      <BookingDetailDialog
+        open={detailDialog.open}
+        onOpenChange={(open) => setDetailDialog((prev) => ({ ...prev, open }))}
+        booking={detailDialog.booking}
+      />
     </div>
   );
 }

@@ -12,10 +12,11 @@ import {
   Label,
   Checkbox,
 } from '@/components/ui';
-import { Settings, DollarSign, MapPin, Save, AlertTriangle, Loader2, CheckCircle } from 'lucide-react';
+import { Settings, DollarSign, MapPin, Save, AlertTriangle, Loader2 } from 'lucide-react';
 import { formatPrice } from '@/lib/utils';
 import { ALL_DESTINATIONS } from '@/lib/constants';
 import { useApi } from '@/hooks';
+import { toast } from 'sonner';
 
 interface PackageSetting {
   id: string;
@@ -32,8 +33,6 @@ interface SettingsResponse {
 export default function AdminSettingsPage() {
   const t = useTranslations('admin');
   const [isSaving, setIsSaving] = useState(false);
-  const [saveSuccess, setSaveSuccess] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
 
   // Fetch settings from API
   const { data, isLoading, error, refetch } = useApi<SettingsResponse>('/api/admin/settings');
@@ -65,8 +64,6 @@ export default function AdminSettingsPage() {
 
   const handleSave = async () => {
     setIsSaving(true);
-    setSaveSuccess(false);
-    setSaveError(null);
 
     try {
       const response = await fetch('/api/admin/settings', {
@@ -86,14 +83,11 @@ export default function AdminSettingsPage() {
         throw new Error(errorData.error || 'Greška pri čuvanju');
       }
 
-      setSaveSuccess(true);
       refetch();
-
-      // Clear success message after 3 seconds
-      setTimeout(() => setSaveSuccess(false), 3000);
+      toast.success('Podešavanja su uspešno sačuvana');
     } catch (err) {
       console.error('Error saving settings:', err);
-      setSaveError(err instanceof Error ? err.message : 'Greška pri čuvanju podešavanja');
+      toast.error(err instanceof Error ? err.message : 'Greška pri čuvanju podešavanja');
     } finally {
       setIsSaving(false);
     }
@@ -126,20 +120,6 @@ export default function AdminSettingsPage() {
         <h1 className="text-2xl font-bold text-foreground sm:text-3xl">{t('settings')}</h1>
         <p className="mt-2 text-foreground-muted">Podešavanja platforme</p>
       </div>
-
-      {/* Success/Error Messages */}
-      {saveSuccess && (
-        <div className="mb-6 flex items-center gap-2 rounded-lg bg-success/10 p-4 text-success">
-          <CheckCircle className="h-5 w-5" />
-          Podešavanja su uspešno sačuvana
-        </div>
-      )}
-      {saveError && (
-        <div className="mb-6 flex items-center gap-2 rounded-lg bg-error/10 p-4 text-error">
-          <AlertTriangle className="h-5 w-5" />
-          {saveError}
-        </div>
-      )}
 
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Package Prices */}

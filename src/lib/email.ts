@@ -1,13 +1,35 @@
-import { Resend } from 'resend';
+import * as brevo from '@getbrevo/brevo';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const apiInstance = new brevo.TransactionalEmailsApi();
+apiInstance.setApiKey(brevo.TransactionalEmailsApiApiKeys.apiKey, process.env.BREVO_API_KEY || '');
 
-const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || 'Ja To Mogu <noreply@jatomogu.rs>';
+const FROM_EMAIL = process.env.BREVO_FROM_EMAIL || 'info@jatomogu.rs';
+const FROM_NAME = 'Ja To Mogu';
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3854';
 
 interface EmailResult {
   success: boolean;
   error?: string;
+}
+
+/**
+ * Send email using Brevo API
+ */
+async function sendEmail(to: string, subject: string, html: string): Promise<EmailResult> {
+  const sendSmtpEmail = new brevo.SendSmtpEmail();
+  sendSmtpEmail.to = [{ email: to }];
+  sendSmtpEmail.sender = { email: FROM_EMAIL, name: FROM_NAME };
+  sendSmtpEmail.subject = subject;
+  sendSmtpEmail.htmlContent = html;
+
+  try {
+    await apiInstance.sendTransacEmail(sendSmtpEmail);
+    console.log(`✅ Email sent to ${to}`);
+    return { success: true };
+  } catch (err) {
+    console.error('❌ Email send error:', err);
+    return { success: false, error: 'Greška pri slanju emaila' };
+  }
 }
 
 // Email verification after registration
@@ -18,65 +40,50 @@ export async function sendVerificationEmail(
 ): Promise<EmailResult> {
   const verifyUrl = `${APP_URL}/sr/verify-email?token=${token}`;
 
-  try {
-    const { error } = await resend.emails.send({
-      from: FROM_EMAIL,
-      to: email,
-      subject: 'Potvrdite vašu email adresu - Ja To Mogu',
-      html: `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        </head>
-        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <div style="text-align: center; margin-bottom: 30px;">
-            <h1 style="color: #F5B800; margin: 0;">Ja To Mogu</h1>
-            <p style="color: #666; margin-top: 5px;">Last-minute smeštaj u Grčkoj</p>
-          </div>
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <div style="text-align: center; margin-bottom: 30px;">
+        <h1 style="color: #8BC34A; margin: 0;">Ja To Mogu</h1>
+        <p style="color: #666; margin-top: 5px;">Last-minute smeštaj u Grčkoj</p>
+      </div>
 
-          <h2 style="color: #333;">Dobrodošli, ${name}!</h2>
+      <h2 style="color: #333;">Dobrodošli, ${name}!</h2>
 
-          <p>Hvala vam što ste se registrovali na platformi Ja To Mogu.</p>
+      <p>Hvala vam što ste se registrovali na platformi Ja To Mogu.</p>
 
-          <p>Kliknite na dugme ispod da potvrdite vašu email adresu:</p>
+      <p>Kliknite na dugme ispod da potvrdite vašu email adresu:</p>
 
-          <div style="text-align: center; margin: 30px 0;">
-            <a href="${verifyUrl}" style="background-color: #F5B800; color: #000; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: 600; display: inline-block;">
-              Potvrdite email
-            </a>
-          </div>
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="${verifyUrl}" style="background-color: #8BC34A; color: #fff; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: 600; display: inline-block;">
+          Potvrdite email
+        </a>
+      </div>
 
-          <p style="color: #666; font-size: 14px;">
-            Ako dugme ne radi, kopirajte i nalepite ovaj link u pregledač:<br>
-            <a href="${verifyUrl}" style="color: #F5B800;">${verifyUrl}</a>
-          </p>
+      <p style="color: #666; font-size: 14px;">
+        Ako dugme ne radi, kopirajte i nalepite ovaj link u pregledač:<br>
+        <a href="${verifyUrl}" style="color: #8BC34A;">${verifyUrl}</a>
+      </p>
 
-          <p style="color: #666; font-size: 14px;">
-            Link za potvrdu ističe za 24 sata.
-          </p>
+      <p style="color: #666; font-size: 14px;">
+        Link za potvrdu ističe za 24 sata.
+      </p>
 
-          <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+      <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
 
-          <p style="color: #999; font-size: 12px; text-align: center;">
-            Ako niste kreirali nalog na Ja To Mogu, slobodno ignorišite ovaj email.
-          </p>
-        </body>
-        </html>
-      `,
-    });
+      <p style="color: #999; font-size: 12px; text-align: center;">
+        Ako niste kreirali nalog na Ja To Mogu, slobodno ignorišite ovaj email.
+      </p>
+    </body>
+    </html>
+  `;
 
-    if (error) {
-      console.error('Email send error:', error);
-      return { success: false, error: error.message };
-    }
-
-    return { success: true };
-  } catch (err) {
-    console.error('Email service error:', err);
-    return { success: false, error: 'Greška pri slanju emaila' };
-  }
+  return sendEmail(email, 'Potvrdite vašu email adresu - Ja To Mogu', html);
 }
 
 // Password reset email
@@ -88,68 +95,53 @@ export async function sendPasswordResetEmail(
   const resetUrl = `${APP_URL}/sr/reset-password?token=${token}`;
   const displayName = name || 'korisniče';
 
-  try {
-    const { error } = await resend.emails.send({
-      from: FROM_EMAIL,
-      to: email,
-      subject: 'Resetovanje lozinke - Ja To Mogu',
-      html: `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        </head>
-        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <div style="text-align: center; margin-bottom: 30px;">
-            <h1 style="color: #F5B800; margin: 0;">Ja To Mogu</h1>
-            <p style="color: #666; margin-top: 5px;">Last-minute smeštaj u Grčkoj</p>
-          </div>
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <div style="text-align: center; margin-bottom: 30px;">
+        <h1 style="color: #8BC34A; margin: 0;">Ja To Mogu</h1>
+        <p style="color: #666; margin-top: 5px;">Last-minute smeštaj u Grčkoj</p>
+      </div>
 
-          <h2 style="color: #333;">Resetovanje lozinke</h2>
+      <h2 style="color: #333;">Resetovanje lozinke</h2>
 
-          <p>Pozdrav ${displayName},</p>
+      <p>Pozdrav ${displayName},</p>
 
-          <p>Primili smo zahtev za resetovanje lozinke za vaš nalog.</p>
+      <p>Primili smo zahtev za resetovanje lozinke za vaš nalog.</p>
 
-          <p>Kliknite na dugme ispod da postavite novu lozinku:</p>
+      <p>Kliknite na dugme ispod da postavite novu lozinku:</p>
 
-          <div style="text-align: center; margin: 30px 0;">
-            <a href="${resetUrl}" style="background-color: #F5B800; color: #000; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: 600; display: inline-block;">
-              Resetujte lozinku
-            </a>
-          </div>
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="${resetUrl}" style="background-color: #8BC34A; color: #fff; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: 600; display: inline-block;">
+          Resetujte lozinku
+        </a>
+      </div>
 
-          <p style="color: #666; font-size: 14px;">
-            Ako dugme ne radi, kopirajte i nalepite ovaj link u pregledač:<br>
-            <a href="${resetUrl}" style="color: #F5B800;">${resetUrl}</a>
-          </p>
+      <p style="color: #666; font-size: 14px;">
+        Ako dugme ne radi, kopirajte i nalepite ovaj link u pregledač:<br>
+        <a href="${resetUrl}" style="color: #8BC34A;">${resetUrl}</a>
+      </p>
 
-          <p style="color: #666; font-size: 14px;">
-            Link za resetovanje ističe za 1 sat.
-          </p>
+      <p style="color: #666; font-size: 14px;">
+        Link za resetovanje ističe za 1 sat.
+      </p>
 
-          <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+      <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
 
-          <p style="color: #999; font-size: 12px; text-align: center;">
-            Ako niste zatražili resetovanje lozinke, slobodno ignorišite ovaj email.<br>
-            Vaša lozinka neće biti promenjena.
-          </p>
-        </body>
-        </html>
-      `,
-    });
+      <p style="color: #999; font-size: 12px; text-align: center;">
+        Ako niste zatražili resetovanje lozinke, slobodno ignorišite ovaj email.<br>
+        Vaša lozinka neće biti promenjena.
+      </p>
+    </body>
+    </html>
+  `;
 
-    if (error) {
-      console.error('Email send error:', error);
-      return { success: false, error: error.message };
-    }
-
-    return { success: true };
-  } catch (err) {
-    console.error('Email service error:', err);
-    return { success: false, error: 'Greška pri slanju emaila' };
-  }
+  return sendEmail(email, 'Resetovanje lozinke - Ja To Mogu', html);
 }
 
 // Booking confirmation email to guest
@@ -191,96 +183,81 @@ export async function sendBookingConfirmationEmail(
 ): Promise<EmailResult> {
   const dashboardUrl = `${APP_URL}/sr/dashboard`;
 
-  try {
-    const { error } = await resend.emails.send({
-      from: FROM_EMAIL,
-      to: data.guestEmail,
-      subject: `Potvrda rezervacije - ${data.accommodationName}`,
-      html: `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        </head>
-        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <div style="text-align: center; margin-bottom: 30px;">
-            <h1 style="color: #F5B800; margin: 0;">Ja To Mogu</h1>
-            <p style="color: #666; margin-top: 5px;">Last-minute smeštaj u Grčkoj</p>
-          </div>
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <div style="text-align: center; margin-bottom: 30px;">
+        <h1 style="color: #8BC34A; margin: 0;">Ja To Mogu</h1>
+        <p style="color: #666; margin-top: 5px;">Last-minute smeštaj u Grčkoj</p>
+      </div>
 
-          <div style="background-color: #10B981; color: white; padding: 15px; border-radius: 8px; text-align: center; margin-bottom: 25px;">
-            <h2 style="margin: 0;">Rezervacija potvrđena!</h2>
-          </div>
+      <div style="background-color: #10B981; color: white; padding: 15px; border-radius: 8px; text-align: center; margin-bottom: 25px;">
+        <h2 style="margin: 0;">Rezervacija potvrđena!</h2>
+      </div>
 
-          <p>Pozdrav ${data.guestName},</p>
+      <p>Pozdrav ${data.guestName},</p>
 
-          <p>Vaša rezervacija je uspešno kreirana. Evo detalja:</p>
+      <p>Vaša rezervacija je uspešno kreirana. Evo detalja:</p>
 
-          <div style="background-color: #f9f9f9; border-radius: 8px; padding: 20px; margin: 20px 0;">
-            <h3 style="margin-top: 0; color: #333;">${data.accommodationName}</h3>
-            <p style="margin: 5px 0; color: #666;">${data.accommodationAddress}</p>
-            <p style="margin: 5px 0; color: #666;">${data.destination}</p>
+      <div style="background-color: #f9f9f9; border-radius: 8px; padding: 20px; margin: 20px 0;">
+        <h3 style="margin-top: 0; color: #333;">${data.accommodationName}</h3>
+        <p style="margin: 5px 0; color: #666;">${data.accommodationAddress}</p>
+        <p style="margin: 5px 0; color: #666;">${data.destination}</p>
 
-            <hr style="border: none; border-top: 1px solid #ddd; margin: 15px 0;">
+        <hr style="border: none; border-top: 1px solid #ddd; margin: 15px 0;">
 
-            <table style="width: 100%; font-size: 14px;">
-              <tr>
-                <td style="padding: 5px 0; color: #666;">Datum dolaska:</td>
-                <td style="padding: 5px 0; text-align: right; font-weight: 600;">${data.arrivalDate}</td>
-              </tr>
-              <tr>
-                <td style="padding: 5px 0; color: #666;">Trajanje:</td>
-                <td style="padding: 5px 0; text-align: right; font-weight: 600;">${formatDuration(data.duration)}</td>
-              </tr>
-              <tr>
-                <td style="padding: 5px 0; color: #666;">Paket:</td>
-                <td style="padding: 5px 0; text-align: right; font-weight: 600;">${data.packageType === 'BONUS' ? 'Bonus paket' : 'Osnovni paket'}</td>
-              </tr>
-              <tr>
-                <td style="padding: 5px 0; color: #666;">Ukupna cena:</td>
-                <td style="padding: 5px 0; text-align: right; font-weight: 600; color: #F5B800;">${formatPrice(data.totalPrice)}</td>
-              </tr>
-            </table>
+        <table style="width: 100%; font-size: 14px;">
+          <tr>
+            <td style="padding: 5px 0; color: #666;">Datum dolaska:</td>
+            <td style="padding: 5px 0; text-align: right; font-weight: 600;">${data.arrivalDate}</td>
+          </tr>
+          <tr>
+            <td style="padding: 5px 0; color: #666;">Trajanje:</td>
+            <td style="padding: 5px 0; text-align: right; font-weight: 600;">${formatDuration(data.duration)}</td>
+          </tr>
+          <tr>
+            <td style="padding: 5px 0; color: #666;">Paket:</td>
+            <td style="padding: 5px 0; text-align: right; font-weight: 600;">${data.packageType === 'BONUS' ? 'Bonus paket' : 'Osnovni paket'}</td>
+          </tr>
+          <tr>
+            <td style="padding: 5px 0; color: #666;">Ukupna cena:</td>
+            <td style="padding: 5px 0; text-align: right; font-weight: 600; color: #8BC34A;">${formatPrice(data.totalPrice)}</td>
+          </tr>
+        </table>
 
-            ${data.ownerName ? `
-            <hr style="border: none; border-top: 1px solid #ddd; margin: 15px 0;">
-            <p style="margin: 5px 0; font-size: 14px;"><strong>Kontakt vlasnika:</strong></p>
-            <p style="margin: 5px 0; color: #666; font-size: 14px;">${data.ownerName}${data.ownerPhone ? ` - ${data.ownerPhone}` : ''}</p>
-            ` : ''}
-          </div>
+        ${data.ownerName ? `
+        <hr style="border: none; border-top: 1px solid #ddd; margin: 15px 0;">
+        <p style="margin: 5px 0; font-size: 14px;"><strong>Kontakt vlasnika:</strong></p>
+        <p style="margin: 5px 0; color: #666; font-size: 14px;">${data.ownerName}${data.ownerPhone ? ` - ${data.ownerPhone}` : ''}</p>
+        ` : ''}
+      </div>
 
-          <p style="color: #666; font-size: 14px;">
-            <strong>Napomena:</strong> Rezervacija važi 36 sati. Molimo vas da kontaktirate vlasnika smeštaja u tom periodu radi potvrde.
-          </p>
+      <p style="color: #666; font-size: 14px;">
+        <strong>Napomena:</strong> Rezervacija važi 36 sati. Molimo vas da kontaktirate vlasnika smeštaja u tom periodu radi potvrde.
+      </p>
 
-          <div style="text-align: center; margin: 30px 0;">
-            <a href="${dashboardUrl}" style="background-color: #F5B800; color: #000; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: 600; display: inline-block;">
-              Pogledajte rezervaciju
-            </a>
-          </div>
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="${dashboardUrl}" style="background-color: #8BC34A; color: #fff; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: 600; display: inline-block;">
+          Pogledajte rezervaciju
+        </a>
+      </div>
 
-          <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+      <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
 
-          <p style="color: #999; font-size: 12px; text-align: center;">
-            ID rezervacije: ${data.bookingId}<br>
-            Hvala što koristite Ja To Mogu!
-          </p>
-        </body>
-        </html>
-      `,
-    });
+      <p style="color: #999; font-size: 12px; text-align: center;">
+        ID rezervacije: ${data.bookingId}<br>
+        Hvala što koristite Ja To Mogu!
+      </p>
+    </body>
+    </html>
+  `;
 
-    if (error) {
-      console.error('Email send error:', error);
-      return { success: false, error: error.message };
-    }
-
-    return { success: true };
-  } catch (err) {
-    console.error('Email service error:', err);
-    return { success: false, error: 'Greška pri slanju emaila' };
-  }
+  return sendEmail(data.guestEmail, `Potvrda rezervacije - ${data.accommodationName}`, html);
 }
 
 // Notification email to accommodation owner
@@ -300,89 +277,74 @@ export async function sendOwnerBookingNotification(
 ): Promise<EmailResult> {
   const adminUrl = `${APP_URL}/sr/owner/bookings`;
 
-  try {
-    const { error } = await resend.emails.send({
-      from: FROM_EMAIL,
-      to: data.ownerEmail,
-      subject: `Nova rezervacija - ${data.accommodationName}`,
-      html: `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        </head>
-        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <div style="text-align: center; margin-bottom: 30px;">
-            <h1 style="color: #F5B800; margin: 0;">Ja To Mogu</h1>
-            <p style="color: #666; margin-top: 5px;">Obaveštenje za vlasnike</p>
-          </div>
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <div style="text-align: center; margin-bottom: 30px;">
+        <h1 style="color: #8BC34A; margin: 0;">Ja To Mogu</h1>
+        <p style="color: #666; margin-top: 5px;">Obaveštenje za vlasnike</p>
+      </div>
 
-          <div style="background-color: #F5B800; color: #000; padding: 15px; border-radius: 8px; text-align: center; margin-bottom: 25px;">
-            <h2 style="margin: 0;">Nova rezervacija!</h2>
-          </div>
+      <div style="background-color: #8BC34A; color: #fff; padding: 15px; border-radius: 8px; text-align: center; margin-bottom: 25px;">
+        <h2 style="margin: 0;">Nova rezervacija!</h2>
+      </div>
 
-          <p>Pozdrav ${data.ownerName},</p>
+      <p>Pozdrav ${data.ownerName},</p>
 
-          <p>Imate novu rezervaciju za vaš smeštaj <strong>${data.accommodationName}</strong>.</p>
+      <p>Imate novu rezervaciju za vaš smeštaj <strong>${data.accommodationName}</strong>.</p>
 
-          <div style="background-color: #f9f9f9; border-radius: 8px; padding: 20px; margin: 20px 0;">
-            <h3 style="margin-top: 0; color: #333;">Detalji rezervacije</h3>
+      <div style="background-color: #f9f9f9; border-radius: 8px; padding: 20px; margin: 20px 0;">
+        <h3 style="margin-top: 0; color: #333;">Detalji rezervacije</h3>
 
-            <table style="width: 100%; font-size: 14px;">
-              <tr>
-                <td style="padding: 5px 0; color: #666;">Gost:</td>
-                <td style="padding: 5px 0; text-align: right; font-weight: 600;">${data.guestName}</td>
-              </tr>
-              <tr>
-                <td style="padding: 5px 0; color: #666;">Telefon gosta:</td>
-                <td style="padding: 5px 0; text-align: right; font-weight: 600;">${data.guestPhone}</td>
-              </tr>
-              <tr>
-                <td style="padding: 5px 0; color: #666;">Datum dolaska:</td>
-                <td style="padding: 5px 0; text-align: right; font-weight: 600;">${data.arrivalDate}</td>
-              </tr>
-              <tr>
-                <td style="padding: 5px 0; color: #666;">Trajanje:</td>
-                <td style="padding: 5px 0; text-align: right; font-weight: 600;">${formatDuration(data.duration)}</td>
-              </tr>
-              <tr>
-                <td style="padding: 5px 0; color: #666;">Paket:</td>
-                <td style="padding: 5px 0; text-align: right; font-weight: 600;">${data.packageType === 'BONUS' ? 'Bonus paket' : 'Osnovni paket'}</td>
-              </tr>
-            </table>
-          </div>
+        <table style="width: 100%; font-size: 14px;">
+          <tr>
+            <td style="padding: 5px 0; color: #666;">Gost:</td>
+            <td style="padding: 5px 0; text-align: right; font-weight: 600;">${data.guestName}</td>
+          </tr>
+          <tr>
+            <td style="padding: 5px 0; color: #666;">Telefon gosta:</td>
+            <td style="padding: 5px 0; text-align: right; font-weight: 600;">${data.guestPhone}</td>
+          </tr>
+          <tr>
+            <td style="padding: 5px 0; color: #666;">Datum dolaska:</td>
+            <td style="padding: 5px 0; text-align: right; font-weight: 600;">${data.arrivalDate}</td>
+          </tr>
+          <tr>
+            <td style="padding: 5px 0; color: #666;">Trajanje:</td>
+            <td style="padding: 5px 0; text-align: right; font-weight: 600;">${formatDuration(data.duration)}</td>
+          </tr>
+          <tr>
+            <td style="padding: 5px 0; color: #666;">Paket:</td>
+            <td style="padding: 5px 0; text-align: right; font-weight: 600;">${data.packageType === 'BONUS' ? 'Bonus paket' : 'Osnovni paket'}</td>
+          </tr>
+        </table>
+      </div>
 
-          <p style="color: #666; font-size: 14px;">
-            <strong>Važno:</strong> Molimo vas da kontaktirate gosta u roku od 36 sati kako biste potvrdili rezervaciju.
-          </p>
+      <p style="color: #666; font-size: 14px;">
+        <strong>Važno:</strong> Molimo vas da kontaktirate gosta u roku od 36 sati kako biste potvrdili rezervaciju.
+      </p>
 
-          <div style="text-align: center; margin: 30px 0;">
-            <a href="${adminUrl}" style="background-color: #F5B800; color: #000; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: 600; display: inline-block;">
-              Pogledajte rezervacije
-            </a>
-          </div>
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="${adminUrl}" style="background-color: #8BC34A; color: #fff; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: 600; display: inline-block;">
+          Pogledajte rezervacije
+        </a>
+      </div>
 
-          <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+      <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
 
-          <p style="color: #999; font-size: 12px; text-align: center;">
-            Ovo je automatsko obaveštenje sa platforme Ja To Mogu.
-          </p>
-        </body>
-        </html>
-      `,
-    });
+      <p style="color: #999; font-size: 12px; text-align: center;">
+        Ovo je automatsko obaveštenje sa platforme Ja To Mogu.
+      </p>
+    </body>
+    </html>
+  `;
 
-    if (error) {
-      console.error('Email send error:', error);
-      return { success: false, error: error.message };
-    }
-
-    return { success: true };
-  } catch (err) {
-    console.error('Email service error:', err);
-    return { success: false, error: 'Greška pri slanju emaila' };
-  }
+  return sendEmail(data.ownerEmail, `Nova rezervacija - ${data.accommodationName}`, html);
 }
 
 // Journey status update notification
@@ -428,87 +390,175 @@ export async function sendJourneyStatusNotification(
   const statusMessage = getJourneyStatusMessage(data.journeyStatus);
   const dashboardUrl = data.recipientRole === 'OWNER'
     ? `${APP_URL}/sr/owner/bookings`
-    : `${APP_URL}/sr/guide/bookings`;
+    : `${APP_URL}/sr/guide/clients`;
 
-  try {
-    const { error } = await resend.emails.send({
-      from: FROM_EMAIL,
-      to: data.recipientEmail,
-      subject: `${statusMessage.title} - ${data.accommodationName}`,
-      html: `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        </head>
-        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <div style="text-align: center; margin-bottom: 30px;">
-            <h1 style="color: #F5B800; margin: 0;">Ja To Mogu</h1>
-            <p style="color: #666; margin-top: 5px;">Obaveštenje o putovanju</p>
-          </div>
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <div style="text-align: center; margin-bottom: 30px;">
+        <h1 style="color: #8BC34A; margin: 0;">Ja To Mogu</h1>
+        <p style="color: #666; margin-top: 5px;">Obaveštenje o putovanju</p>
+      </div>
 
-          <div style="background-color: #F5B800; color: #000; padding: 15px; border-radius: 8px; text-align: center; margin-bottom: 25px;">
-            <h2 style="margin: 0;">${statusMessage.title}</h2>
-          </div>
+      <div style="background-color: #8BC34A; color: #fff; padding: 15px; border-radius: 8px; text-align: center; margin-bottom: 25px;">
+        <h2 style="margin: 0;">${statusMessage.title}</h2>
+      </div>
 
-          <p>Pozdrav ${data.recipientName},</p>
+      <p>Pozdrav ${data.recipientName},</p>
 
-          <p>${statusMessage.description}</p>
+      <p>${statusMessage.description}</p>
 
-          <div style="background-color: #f9f9f9; border-radius: 8px; padding: 20px; margin: 20px 0;">
-            <h3 style="margin-top: 0; color: #333;">Detalji</h3>
+      <div style="background-color: #f9f9f9; border-radius: 8px; padding: 20px; margin: 20px 0;">
+        <h3 style="margin-top: 0; color: #333;">Detalji</h3>
 
-            <table style="width: 100%; font-size: 14px;">
-              <tr>
-                <td style="padding: 5px 0; color: #666;">Smeštaj:</td>
-                <td style="padding: 5px 0; text-align: right; font-weight: 600;">${data.accommodationName}</td>
-              </tr>
-              <tr>
-                <td style="padding: 5px 0; color: #666;">Gost:</td>
-                <td style="padding: 5px 0; text-align: right; font-weight: 600;">${data.guestName}</td>
-              </tr>
-              <tr>
-                <td style="padding: 5px 0; color: #666;">Telefon gosta:</td>
-                <td style="padding: 5px 0; text-align: right; font-weight: 600;">${data.guestPhone}</td>
-              </tr>
-              <tr>
-                <td style="padding: 5px 0; color: #666;">Datum dolaska:</td>
-                <td style="padding: 5px 0; text-align: right; font-weight: 600;">${data.arrivalDate}</td>
-              </tr>
-            </table>
-          </div>
+        <table style="width: 100%; font-size: 14px;">
+          <tr>
+            <td style="padding: 5px 0; color: #666;">Smeštaj:</td>
+            <td style="padding: 5px 0; text-align: right; font-weight: 600;">${data.accommodationName}</td>
+          </tr>
+          <tr>
+            <td style="padding: 5px 0; color: #666;">Gost:</td>
+            <td style="padding: 5px 0; text-align: right; font-weight: 600;">${data.guestName}</td>
+          </tr>
+          <tr>
+            <td style="padding: 5px 0; color: #666;">Telefon gosta:</td>
+            <td style="padding: 5px 0; text-align: right; font-weight: 600;">${data.guestPhone}</td>
+          </tr>
+          <tr>
+            <td style="padding: 5px 0; color: #666;">Datum dolaska:</td>
+            <td style="padding: 5px 0; text-align: right; font-weight: 600;">${data.arrivalDate}</td>
+          </tr>
+        </table>
+      </div>
 
-          ${data.journeyStatus === 'ARRIVED' ? `
-          <p style="color: #10B981; font-weight: 600;">
-            Gost je stigao na destinaciju. Molimo proverite da li je sve u redu sa smeštajem.
-          </p>
-          ` : ''}
+      ${data.journeyStatus === 'ARRIVED' ? `
+      <p style="color: #10B981; font-weight: 600;">
+        Gost je stigao na destinaciju. Molimo proverite da li je sve u redu sa smeštajem.
+      </p>
+      ` : ''}
 
-          <div style="text-align: center; margin: 30px 0;">
-            <a href="${dashboardUrl}" style="background-color: #F5B800; color: #000; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: 600; display: inline-block;">
-              Pogledajte rezervacije
-            </a>
-          </div>
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="${dashboardUrl}" style="background-color: #8BC34A; color: #fff; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: 600; display: inline-block;">
+          Pogledajte detalje
+        </a>
+      </div>
 
-          <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+      <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
 
-          <p style="color: #999; font-size: 12px; text-align: center;">
-            Ovo je automatsko obaveštenje sa platforme Ja To Mogu.
-          </p>
-        </body>
-        </html>
-      `,
-    });
+      <p style="color: #999; font-size: 12px; text-align: center;">
+        Ovo je automatsko obaveštenje sa platforme Ja To Mogu.
+      </p>
+    </body>
+    </html>
+  `;
 
-    if (error) {
-      console.error('Email send error:', error);
-      return { success: false, error: error.message };
-    }
+  return sendEmail(data.recipientEmail, `${statusMessage.title} - ${data.accommodationName}`, html);
+}
 
-    return { success: true };
-  } catch (err) {
-    console.error('Email service error:', err);
-    return { success: false, error: 'Greška pri slanju emaila' };
-  }
+// Guide notification when assigned to a booking
+interface GuideAssignmentData {
+  guideEmail: string;
+  guideName: string;
+  guestName: string;
+  guestPhone: string;
+  accommodationName: string;
+  accommodationAddress: string;
+  destination: string;
+  arrivalDate: string;
+  arrivalTime: string;
+  ownerName: string;
+  ownerPhone: string;
+}
+
+export async function sendGuideAssignmentNotification(
+  data: GuideAssignmentData
+): Promise<EmailResult> {
+  const dashboardUrl = `${APP_URL}/sr/guide/clients`;
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <div style="text-align: center; margin-bottom: 30px;">
+        <h1 style="color: #8BC34A; margin: 0;">Ja To Mogu</h1>
+        <p style="color: #666; margin-top: 5px;">Obaveštenje za vodiče</p>
+      </div>
+
+      <div style="background-color: #8BC34A; color: #fff; padding: 15px; border-radius: 8px; text-align: center; margin-bottom: 25px;">
+        <h2 style="margin: 0;">Novi klijent!</h2>
+      </div>
+
+      <p>Pozdrav ${data.guideName},</p>
+
+      <p>Dodeljen vam je novi klijent koji dolazi na destinaciju.</p>
+
+      <div style="background-color: #f9f9f9; border-radius: 8px; padding: 20px; margin: 20px 0;">
+        <h3 style="margin-top: 0; color: #333;">Podaci o klijentu</h3>
+        <table style="width: 100%; font-size: 14px;">
+          <tr>
+            <td style="padding: 5px 0; color: #666;">Ime:</td>
+            <td style="padding: 5px 0; text-align: right; font-weight: 600;">${data.guestName}</td>
+          </tr>
+          <tr>
+            <td style="padding: 5px 0; color: #666;">Telefon:</td>
+            <td style="padding: 5px 0; text-align: right; font-weight: 600;">${data.guestPhone}</td>
+          </tr>
+          <tr>
+            <td style="padding: 5px 0; color: #666;">Datum dolaska:</td>
+            <td style="padding: 5px 0; text-align: right; font-weight: 600;">${data.arrivalDate}</td>
+          </tr>
+          <tr>
+            <td style="padding: 5px 0; color: #666;">Vreme dolaska:</td>
+            <td style="padding: 5px 0; text-align: right; font-weight: 600;">${data.arrivalTime}</td>
+          </tr>
+        </table>
+
+        <hr style="border: none; border-top: 1px solid #ddd; margin: 15px 0;">
+
+        <h3 style="margin-top: 0; color: #333;">Podaci o smeštaju</h3>
+        <table style="width: 100%; font-size: 14px;">
+          <tr>
+            <td style="padding: 5px 0; color: #666;">Smeštaj:</td>
+            <td style="padding: 5px 0; text-align: right; font-weight: 600;">${data.accommodationName}</td>
+          </tr>
+          <tr>
+            <td style="padding: 5px 0; color: #666;">Adresa:</td>
+            <td style="padding: 5px 0; text-align: right; font-weight: 600;">${data.accommodationAddress}</td>
+          </tr>
+          <tr>
+            <td style="padding: 5px 0; color: #666;">Destinacija:</td>
+            <td style="padding: 5px 0; text-align: right; font-weight: 600;">${data.destination}</td>
+          </tr>
+          <tr>
+            <td style="padding: 5px 0; color: #666;">Vlasnik:</td>
+            <td style="padding: 5px 0; text-align: right; font-weight: 600;">${data.ownerName} - ${data.ownerPhone}</td>
+          </tr>
+        </table>
+      </div>
+
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="${dashboardUrl}" style="background-color: #8BC34A; color: #fff; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: 600; display: inline-block;">
+          Pogledajte klijente
+        </a>
+      </div>
+
+      <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+
+      <p style="color: #999; font-size: 12px; text-align: center;">
+        Ovo je automatsko obaveštenje sa platforme Ja To Mogu.
+      </p>
+    </body>
+    </html>
+  `;
+
+  return sendEmail(data.guideEmail, `Novi klijent - ${data.guestName}`, html);
 }

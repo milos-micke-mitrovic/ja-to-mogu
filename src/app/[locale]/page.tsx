@@ -101,12 +101,18 @@ function HomeContent({ user }: HomeContentProps) {
               <p className="mt-8 text-2xl font-bold text-foreground">{t('heroCta')}</p>
             </div>
 
-            {/* TODO: Add promotional video */}
+            {/* Promotional Video */}
             <div className="mx-auto mt-12 max-w-3xl">
-              <div className="aspect-video overflow-hidden rounded-xl bg-muted shadow-lg">
-                <div className="flex h-full items-center justify-center">
-                  <p className="text-foreground-muted">Video placeholder</p>
-                </div>
+              <div className="aspect-video overflow-hidden rounded-xl bg-secondary shadow-lg">
+                <video
+                  controls
+                  playsInline
+                  preload="metadata"
+                  className="h-full w-full object-cover"
+                >
+                  <source src="/videos/welcome.mp4" type="video/mp4" />
+                  Vaš pretraživač ne podržava video.
+                </video>
               </div>
             </div>
           </div>

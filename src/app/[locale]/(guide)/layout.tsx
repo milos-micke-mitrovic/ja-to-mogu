@@ -1,6 +1,9 @@
 import { redirect } from 'next/navigation';
 import { auth } from '@/lib/auth';
-import { GuideHeader } from '@/components/layouts/guide-header';
+import { GuideSidebar } from '@/components/layouts/guide-sidebar';
+import { DashboardContent } from '@/components/layouts/dashboard-content';
+import { SidebarProvider } from '@/contexts';
+import { TooltipProvider } from '@/components/ui';
 
 interface GuideLayoutProps {
   children: React.ReactNode;
@@ -19,9 +22,13 @@ export default async function GuideLayout({ children }: GuideLayoutProps) {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
-      <GuideHeader user={session.user} />
-      <main className="flex-1">{children}</main>
-    </div>
+    <SidebarProvider>
+      <TooltipProvider>
+        <div className="flex min-h-screen bg-background">
+          <GuideSidebar user={session.user} />
+          <DashboardContent>{children}</DashboardContent>
+        </div>
+      </TooltipProvider>
+    </SidebarProvider>
   );
 }

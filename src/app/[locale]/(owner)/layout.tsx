@@ -1,6 +1,9 @@
 import { redirect } from 'next/navigation';
 import { auth } from '@/lib/auth';
-import { OwnerHeader } from '@/components/layouts/owner-header';
+import { OwnerSidebar } from '@/components/layouts/owner-sidebar';
+import { DashboardContent } from '@/components/layouts/dashboard-content';
+import { SidebarProvider } from '@/contexts';
+import { TooltipProvider } from '@/components/ui';
 
 interface OwnerLayoutProps {
   children: React.ReactNode;
@@ -19,9 +22,13 @@ export default async function OwnerLayout({ children }: OwnerLayoutProps) {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
-      <OwnerHeader user={session.user} />
-      <main className="flex-1">{children}</main>
-    </div>
+    <SidebarProvider>
+      <TooltipProvider>
+        <div className="flex min-h-screen bg-background">
+          <OwnerSidebar user={session.user} />
+          <DashboardContent>{children}</DashboardContent>
+        </div>
+      </TooltipProvider>
+    </SidebarProvider>
   );
 }

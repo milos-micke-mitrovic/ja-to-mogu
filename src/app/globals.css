@@ -1,12 +1,12 @@
 @import 'tailwindcss';
 
 :root {
-  /* Primary colors - Yellow theme */
-  --color-primary: #F5B800;
-  --color-primary-hover: #E5AB00;
-  --color-primary-light: #FFF4CC;
-  --color-primary-dark: #C49400;
-  --color-primary-foreground: #1A1A1A;
+  /* Primary colors - Green theme (matching Ja Mogu logo) */
+  --color-primary: #8BC34A;
+  --color-primary-hover: #7CB342;
+  --color-primary-light: #DCEDC8;
+  --color-primary-dark: #689F38;
+  --color-primary-foreground: #FFFFFF;
 
   /* Secondary colors */
   --color-secondary: #1A1A1A;
@@ -14,9 +14,9 @@
   --color-secondary-light: #404040;
   --color-secondary-foreground: #FFFFFF;
 
-  /* Accent colors */
-  --color-accent: #F5B800;
-  --color-accent-hover: #E5AB00;
+  /* Accent colors - Lime green (logo head color) */
+  --color-accent: #C6D830;
+  --color-accent-hover: #B5C72B;
   --color-accent-foreground: #1A1A1A;
 
   /* Background colors */
@@ -32,7 +32,7 @@
   /* Border colors */
   --color-border: #E5E7EB;
   --color-border-hover: #D1D5DB;
-  --color-border-focus: #F5B800;
+  --color-border-focus: #8BC34A;
 
   /* Status colors */
   --color-success: #10B981;
@@ -68,7 +68,7 @@
   --color-input: #FFFFFF;
   --color-input-border: #E5E7EB;
   --color-input-placeholder: #9CA3AF;
-  --color-input-focus: #F5B800;
+  --color-input-focus: #8BC34A;
 
   /* Muted colors */
   --color-muted: #F3F4F6;
@@ -79,7 +79,7 @@
   --color-popover-foreground: #1A1A1A;
 
   /* Ring color for focus states */
-  --color-ring: #F5B800;
+  --color-ring: #8BC34A;
 
   /* Shadow colors */
   --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);

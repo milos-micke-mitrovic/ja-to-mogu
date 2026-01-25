@@ -10,9 +10,11 @@ import {
   Button,
   Input,
   Label,
+  Checkbox,
 } from '@/components/ui';
 import { User, Phone, Mail, MapPin, Save, Bell, Loader2 } from 'lucide-react';
 import { useApi } from '@/hooks';
+import { toast } from 'sonner';
 
 interface UserProfile {
   id: string;
@@ -75,7 +77,7 @@ export default function GuideSettingsPage() {
     setIsSaving(true);
 
     try {
-      await fetch('/api/user/profile', {
+      const res = await fetch('/api/user/profile', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -83,9 +85,16 @@ export default function GuideSettingsPage() {
           phone: formData.phone,
         }),
       });
+
+      if (!res.ok) {
+        throw new Error('Failed to save');
+      }
+
       refetch();
+      toast.success('Podešavanja su sačuvana');
     } catch (error) {
       console.error('Error saving settings:', error);
+      toast.error('Greška pri čuvanju podešavanja');
     } finally {
       setIsSaving(false);
     }
@@ -189,11 +198,9 @@ export default function GuideSettingsPage() {
                     Obaveštenje kada vam se dodeli novi klijent
                   </p>
                 </div>
-                <input
-                  type="checkbox"
+                <Checkbox
                   checked={formData.notifications.newClient}
-                  onChange={(e) => handleNotificationChange('newClient', e.target.checked)}
-                  className="h-5 w-5 rounded border-border text-primary focus:ring-primary"
+                  onCheckedChange={(checked) => handleNotificationChange('newClient', !!checked)}
                 />
               </div>
               <div className="flex items-center justify-between">
@@ -203,11 +210,9 @@ export default function GuideSettingsPage() {
                     Obaveštenje kada klijent potvrdi polazak
                   </p>
                 </div>
-                <input
-                  type="checkbox"
+                <Checkbox
                   checked={formData.notifications.clientDeparted}
-                  onChange={(e) => handleNotificationChange('clientDeparted', e.target.checked)}
-                  className="h-5 w-5 rounded border-border text-primary focus:ring-primary"
+                  onCheckedChange={(checked) => handleNotificationChange('clientDeparted', !!checked)}
                 />
               </div>
               <div className="flex items-center justify-between">
@@ -217,11 +222,9 @@ export default function GuideSettingsPage() {
                     Obaveštenje kada klijent pređe granicu
                   </p>
                 </div>
-                <input
-                  type="checkbox"
+                <Checkbox
                   checked={formData.notifications.clientInGreece}
-                  onChange={(e) => handleNotificationChange('clientInGreece', e.target.checked)}
-                  className="h-5 w-5 rounded border-border text-primary focus:ring-primary"
+                  onCheckedChange={(checked) => handleNotificationChange('clientInGreece', !!checked)}
                 />
               </div>
               <div className="flex items-center justify-between">
@@ -231,11 +234,9 @@ export default function GuideSettingsPage() {
                     Obaveštenje kada klijent stigne na destinaciju
                   </p>
                 </div>
-                <input
-                  type="checkbox"
+                <Checkbox
                   checked={formData.notifications.clientArrived}
-                  onChange={(e) => handleNotificationChange('clientArrived', e.target.checked)}
-                  className="h-5 w-5 rounded border-border text-primary focus:ring-primary"
+                  onCheckedChange={(checked) => handleNotificationChange('clientArrived', !!checked)}
                 />
               </div>
             </div>

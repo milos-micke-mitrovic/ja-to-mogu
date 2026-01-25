@@ -10,9 +10,11 @@ import {
   Button,
   Input,
   Label,
+  Checkbox,
 } from '@/components/ui';
 import { User, Phone, Mail, MapPin, Save, Bell, Shield, Loader2 } from 'lucide-react';
 import { useApi } from '@/hooks';
+import { toast } from 'sonner';
 
 interface UserProfile {
   id: string;
@@ -77,7 +79,7 @@ export default function OwnerSettingsPage() {
     setIsSaving(true);
 
     try {
-      await fetch('/api/user/profile', {
+      const res = await fetch('/api/user/profile', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -85,9 +87,16 @@ export default function OwnerSettingsPage() {
           phone: formData.phone,
         }),
       });
+
+      if (!res.ok) {
+        throw new Error('Failed to save');
+      }
+
       refetch();
+      toast.success('Podešavanja su sačuvana');
     } catch (error) {
       console.error('Error saving settings:', error);
+      toast.error('Greška pri čuvanju podešavanja');
     } finally {
       setIsSaving(false);
     }
@@ -223,11 +232,9 @@ export default function OwnerSettingsPage() {
                     Primajte obaveštenja o novim rezervacijama
                   </p>
                 </div>
-                <input
-                  type="checkbox"
+                <Checkbox
                   checked={formData.notifications.newBooking}
-                  onChange={(e) => handleNotificationChange('newBooking', e.target.checked)}
-                  className="h-5 w-5 rounded border-border text-primary focus:ring-primary"
+                  onCheckedChange={(checked) => handleNotificationChange('newBooking', !!checked)}
                 />
               </div>
               <div className="flex items-center justify-between">
@@ -237,11 +244,9 @@ export default function OwnerSettingsPage() {
                     Obaveštenja kada gost potvrdi dolazak
                   </p>
                 </div>
-                <input
-                  type="checkbox"
+                <Checkbox
                   checked={formData.notifications.guestArrival}
-                  onChange={(e) => handleNotificationChange('guestArrival', e.target.checked)}
-                  className="h-5 w-5 rounded border-border text-primary focus:ring-primary"
+                  onCheckedChange={(checked) => handleNotificationChange('guestArrival', !!checked)}
                 />
               </div>
               <div className="flex items-center justify-between">
@@ -251,11 +256,9 @@ export default function OwnerSettingsPage() {
                     Obaveštenja o novim ocenama
                   </p>
                 </div>
-                <input
-                  type="checkbox"
+                <Checkbox
                   checked={formData.notifications.reviews}
-                  onChange={(e) => handleNotificationChange('reviews', e.target.checked)}
-                  className="h-5 w-5 rounded border-border text-primary focus:ring-primary"
+                  onCheckedChange={(checked) => handleNotificationChange('reviews', !!checked)}
                 />
               </div>
             </div>

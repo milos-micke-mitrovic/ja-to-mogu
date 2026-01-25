@@ -1,6 +1,9 @@
 import { redirect } from 'next/navigation';
 import { auth } from '@/lib/auth';
 import { AdminSidebar } from '@/components/layouts/admin-sidebar';
+import { DashboardContent } from '@/components/layouts/dashboard-content';
+import { SidebarProvider } from '@/contexts';
+import { TooltipProvider } from '@/components/ui';
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -19,9 +22,13 @@ export default async function AdminLayout({ children }: AdminLayoutProps) {
   }
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <AdminSidebar user={session.user} />
-      <main className="flex-1 overflow-y-auto lg:ml-64">{children}</main>
-    </div>
+    <SidebarProvider>
+      <TooltipProvider>
+        <div className="flex min-h-screen bg-background">
+          <AdminSidebar user={session.user} />
+          <DashboardContent>{children}</DashboardContent>
+        </div>
+      </TooltipProvider>
+    </SidebarProvider>
   );
 }

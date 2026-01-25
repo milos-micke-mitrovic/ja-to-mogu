@@ -1,10 +1,23 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
-import { Card, CardContent, Button, Input } from '@/components/ui';
-import { Compass, Plus, Search, MapPin, Pencil, Trash2, Phone, Mail, Check, X, Loader2 } from 'lucide-react';
+import { ColumnDef } from '@tanstack/react-table';
+import {
+  Card,
+  CardContent,
+  Button,
+  Input,
+  DataTable,
+  ConfirmDialog,
+  SimpleTooltip,
+} from '@/components/ui';
+import { Compass, Plus, Search, Pencil, Trash2, Phone, Mail, Check, X, Loader2, Eye } from 'lucide-react';
 import { useApi } from '@/hooks';
+import { useDebouncedCallback } from 'use-debounce';
+import { toast } from 'sonner';
+import { UserFormDialog } from '@/components/admin/user-form-dialog';
+import { UserDetailDialog } from '@/components/admin/user-detail-dialog';
 
 interface AdminUser {
   id: string;
@@ -31,24 +44,219 @@ interface UsersResponse {
   };
 }
 
+const PAGE_SIZE = 10;
+
 export default function AdminGuidesPage() {
   const t = useTranslations('admin');
+  const [page, setPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [isDeleting, setIsDeleting] = useState<string | null>(null);
+  const [deleteDialog, setDeleteDialog] = useState<{
+    open: boolean;
+    user: AdminUser | null;
+  }>({
+    open: false,
+    user: null,
+  });
+  const [formDialog, setFormDialog] = useState<{
+    open: boolean;
+    user: AdminUser | null;
+  }>({
+    open: false,
+    user: null,
+  });
+  const [detailDialog, setDetailDialog] = useState<{
+    open: boolean;
+    user: AdminUser | null;
+  }>({
+    open: false,
+    user: null,
+  });
 
-  // Fetch guides (users with role GUIDE)
-  const { data, isLoading, error } = useApi<UsersResponse>('/api/admin/users?role=GUIDE&limit=100');
+  const buildApiUrl = useCallback(() => {
+    const params = new URLSearchParams();
+    params.set('role', 'GUIDE');
+    params.set('page', page.toString());
+    params.set('limit', PAGE_SIZE.toString());
 
-  const filteredGuides = useMemo(() => {
-    if (!data?.users) return [];
+    if (debouncedSearch) {
+      params.set('search', debouncedSearch);
+    }
 
-    return data.users.filter(
-      (guide) =>
-        guide.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        guide.email?.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-  }, [data?.users, searchQuery]);
+    return `/api/admin/users?${params.toString()}`;
+  }, [page, debouncedSearch]);
 
-  if (isLoading) {
+  const { data, isLoading, error, refetch } = useApi<UsersResponse>(buildApiUrl());
+
+  const debouncedSetSearch = useDebouncedCallback((value: string) => {
+    setDebouncedSearch(value);
+    setPage(1);
+  }, 300);
+
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value);
+    debouncedSetSearch(value);
+  };
+
+  const handlePageChange = (newPage: number) => {
+    setPage(newPage + 1);
+  };
+
+  const openDeleteDialog = (user: AdminUser) => {
+    setDeleteDialog({ open: true, user });
+  };
+
+  const openAddDialog = () => {
+    setFormDialog({ open: true, user: null });
+  };
+
+  const openEditDialog = (user: AdminUser) => {
+    setFormDialog({ open: true, user });
+  };
+
+  const openDetailDialog = (user: AdminUser) => {
+    setDetailDialog({ open: true, user });
+  };
+
+  const handleDelete = async () => {
+    if (!deleteDialog.user) return;
+
+    setIsDeleting(deleteDialog.user.id);
+    try {
+      const response = await fetch(`/api/admin/users/${deleteDialog.user.id}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Greška pri brisanju');
+      }
+
+      refetch();
+    } catch (err) {
+      console.error('Error deleting guide:', err);
+      toast.error(err instanceof Error ? err.message : 'Greška pri brisanju');
+    } finally {
+      setIsDeleting(null);
+    }
+  };
+
+  const columns: ColumnDef<AdminUser>[] = [
+    {
+      accessorKey: 'name',
+      header: 'Vodič',
+      cell: ({ row }) => (
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
+            <Compass className="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <p className="font-medium">{row.original.name || 'Bez imena'}</p>
+            <span
+              className={`inline-flex items-center gap-1 text-xs ${
+                row.original.isActive ? 'text-success' : 'text-foreground-muted'
+              }`}
+            >
+              {row.original.isActive ? (
+                <>
+                  <Check className="h-3 w-3" /> Dostupan
+                </>
+              ) : (
+                <>
+                  <X className="h-3 w-3" /> Nedostupan
+                </>
+              )}
+            </span>
+          </div>
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'email',
+      header: 'Kontakt',
+      cell: ({ row }) => (
+        <div className="space-y-1 text-sm">
+          <div className="flex items-center gap-2 text-foreground-muted">
+            <Mail className="h-4 w-4" />
+            {row.original.email}
+          </div>
+          {row.original.phone && (
+            <div className="flex items-center gap-2 text-foreground-muted">
+              <Phone className="h-4 w-4" />
+              {row.original.phone}
+            </div>
+          )}
+        </div>
+      ),
+    },
+    {
+      accessorKey: '_count.guidedBookings',
+      header: 'Aktivni klijenti',
+      cell: ({ row }) => (
+        <span className="text-sm font-medium">{row.original._count.guidedBookings}</span>
+      ),
+    },
+    {
+      accessorKey: 'isActive',
+      header: 'Status',
+      cell: ({ row }) => (
+        <span
+          className={`rounded-full px-2 py-1 text-xs font-medium ${
+            row.original.isActive ? 'bg-success/10 text-success' : 'bg-muted text-foreground-muted'
+          }`}
+        >
+          {row.original.isActive ? 'Aktivan' : 'Neaktivan'}
+        </span>
+      ),
+    },
+    {
+      id: 'actions',
+      header: () => <span className="sr-only">Akcije</span>,
+      enableSorting: false,
+      cell: ({ row }) => (
+        <div className="flex justify-end gap-1">
+          <SimpleTooltip content="Pregled">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 p-0"
+              onClick={() => openDetailDialog(row.original)}
+            >
+              <Eye className="h-4 w-4" />
+            </Button>
+          </SimpleTooltip>
+          <SimpleTooltip content="Izmeni">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 p-0"
+              onClick={() => openEditDialog(row.original)}
+            >
+              <Pencil className="h-4 w-4" />
+            </Button>
+          </SimpleTooltip>
+          <SimpleTooltip content="Obriši">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 p-0 text-error hover:text-error"
+              onClick={() => openDeleteDialog(row.original)}
+              disabled={isDeleting === row.original.id}
+            >
+              {isDeleting === row.original.id ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="h-4 w-4" />
+              )}
+            </Button>
+          </SimpleTooltip>
+        </div>
+      ),
+    },
+  ];
+
+  if (isLoading && !data) {
     return (
       <div className="flex min-h-[400px] items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -68,6 +276,8 @@ export default function AdminGuidesPage() {
     );
   }
 
+  const pagination = data?.pagination ?? { page: 1, limit: PAGE_SIZE, total: 0, totalPages: 0 };
+
   return (
     <div className="p-6 lg:p-8">
       {/* Header */}
@@ -75,10 +285,10 @@ export default function AdminGuidesPage() {
         <div>
           <h1 className="text-2xl font-bold text-foreground sm:text-3xl">{t('guides')}</h1>
           <p className="mt-2 text-foreground-muted">
-            Upravljajte vodičima na terenu ({data?.pagination.total || 0})
+            Upravljajte vodičima na terenu ({pagination.total})
           </p>
         </div>
-        <Button className="gap-2">
+        <Button className="gap-2" onClick={openAddDialog}>
           <Plus className="h-4 w-4" />
           {t('addGuide')}
         </Button>
@@ -92,105 +302,56 @@ export default function AdminGuidesPage() {
             <Input
               placeholder="Pretraži vodiče..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => handleSearchChange(e.target.value)}
               className="pl-10"
             />
           </div>
         </CardContent>
       </Card>
 
-      {/* Guides Grid */}
-      {filteredGuides.length === 0 ? (
-        <Card className="p-12 text-center">
-          <Compass className="mx-auto h-12 w-12 text-foreground-muted" />
-          <h3 className="mt-4 text-lg font-medium">Nema pronađenih vodiča</h3>
-          <p className="mt-2 text-foreground-muted">
-            {searchQuery ? 'Probajte sa drugim terminom pretrage' : 'Dodajte prvog vodiča'}
-          </p>
-        </Card>
-      ) : (
-        <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-          {filteredGuides.map((guide) => (
-            <Card key={guide.id}>
-              <CardContent className="p-6">
-                {/* Header */}
-                <div className="mb-4 flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
-                      <Compass className="h-6 w-6 text-primary" />
-                    </div>
-                    <div>
-                      <p className="font-semibold">{guide.name || 'Bez imena'}</p>
-                      <span
-                        className={`inline-flex items-center gap-1 text-xs ${
-                          guide.isActive ? 'text-success' : 'text-foreground-muted'
-                        }`}
-                      >
-                        {guide.isActive ? (
-                          <>
-                            <Check className="h-3 w-3" /> Dostupan
-                          </>
-                        ) : (
-                          <>
-                            <X className="h-3 w-3" /> Nedostupan
-                          </>
-                        )}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="flex gap-1">
-                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-error">
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
+      {/* Guides Table */}
+      <Card>
+        <CardContent className="p-0">
+          <DataTable
+            columns={columns}
+            data={data?.users ?? []}
+            pageIndex={pagination.page - 1}
+            pageSize={pagination.limit}
+            pageCount={pagination.totalPages}
+            totalItems={pagination.total}
+            onPageChange={handlePageChange}
+            emptyMessage="Nema pronađenih vodiča"
+          />
+        </CardContent>
+      </Card>
 
-                {/* Contact */}
-                <div className="mb-4 space-y-1 text-sm">
-                  <div className="flex items-center gap-2 text-foreground-muted">
-                    <Mail className="h-4 w-4" />
-                    {guide.email}
-                  </div>
-                  {guide.phone && (
-                    <div className="flex items-center gap-2 text-foreground-muted">
-                      <Phone className="h-4 w-4" />
-                      {guide.phone}
-                    </div>
-                  )}
-                </div>
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDialog
+        open={deleteDialog.open}
+        onOpenChange={(open) => setDeleteDialog((prev) => ({ ...prev, open }))}
+        title="Obriši vodiča"
+        description={`Da li ste sigurni da želite da obrišete vodiča "${deleteDialog.user?.name || ''}"? Ova akcija se ne može poništiti.`}
+        confirmLabel="Obriši"
+        variant="destructive"
+        onConfirm={handleDelete}
+        isLoading={isDeleting === deleteDialog.user?.id}
+      />
 
-                {/* Locations placeholder */}
-                <div className="mb-4">
-                  <p className="mb-2 flex items-center gap-2 text-sm font-medium text-foreground-muted">
-                    <MapPin className="h-4 w-4" />
-                    Lokacije
-                  </p>
-                  <div className="flex flex-wrap gap-1">
-                    <span className="rounded bg-muted px-2 py-0.5 text-xs text-foreground-muted">
-                      Sve lokacije
-                    </span>
-                  </div>
-                </div>
+      {/* Add/Edit User Dialog */}
+      <UserFormDialog
+        open={formDialog.open}
+        onOpenChange={(open) => setFormDialog((prev) => ({ ...prev, open }))}
+        user={formDialog.user}
+        role="GUIDE"
+        onSuccess={refetch}
+      />
 
-                {/* Stats */}
-                <div className="flex gap-4 border-t border-border pt-4 text-sm">
-                  <div>
-                    <p className="text-foreground-muted">Aktivni klijenti</p>
-                    <p className="font-semibold">{guide._count.guidedBookings}</p>
-                  </div>
-                  <div>
-                    <p className="text-foreground-muted">Ukupno klijenata</p>
-                    <p className="font-semibold">{guide._count.guidedBookings}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
+      {/* User Detail Dialog */}
+      <UserDetailDialog
+        open={detailDialog.open}
+        onOpenChange={(open) => setDetailDialog((prev) => ({ ...prev, open }))}
+        user={detailDialog.user}
+      />
     </div>
   );
 }

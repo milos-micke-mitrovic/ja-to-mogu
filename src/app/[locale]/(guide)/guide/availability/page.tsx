@@ -15,6 +15,7 @@ import { MapPin, Check, X, Save, Loader2 } from 'lucide-react';
 import { ALL_DESTINATIONS } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import { useApi } from '@/hooks';
+import { toast } from 'sonner';
 
 interface GuideAvailability {
   id: string;
@@ -92,8 +93,10 @@ export default function GuideAvailabilityPage() {
       }
 
       refetch();
+      toast.success('Dostupnost je sačuvana');
     } catch (error) {
       console.error('Error saving availability:', error);
+      toast.error('Greška pri čuvanju dostupnosti');
     } finally {
       setIsSaving(false);
     }

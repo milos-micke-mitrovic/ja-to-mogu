@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
+import { ColumnDef } from '@tanstack/react-table';
 import {
   Card,
   CardContent,
@@ -12,6 +13,9 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  DataTable,
+  ConfirmDialog,
+  SimpleTooltip,
 } from '@/components/ui';
 import {
   Building2,
@@ -28,6 +32,10 @@ import { formatPrice } from '@/lib/utils';
 import { cn } from '@/lib/utils';
 import { useApi } from '@/hooks';
 import { ALL_DESTINATIONS } from '@/lib/constants';
+import { useDebouncedCallback } from 'use-debounce';
+import { toast } from 'sonner';
+import { AccommodationFormDialog } from '@/components/admin/accommodation-form-dialog';
+import { AccommodationDetailDialog } from '@/components/admin/accommodation-detail-dialog';
 
 interface AdminAccommodation {
   id: string;
@@ -39,6 +47,8 @@ interface AdminAccommodation {
   minPricePerNight: number | null;
   beds: number;
   rooms: number;
+  latitude: number;
+  longitude: number;
   owner: {
     id: string;
     name: string;
@@ -61,60 +71,268 @@ interface AccommodationsResponse {
   };
 }
 
+const PAGE_SIZE = 10;
+
+const getStatusColor = (status: string) => {
+  switch (status) {
+    case 'AVAILABLE':
+      return 'bg-success/10 text-success';
+    case 'BOOKED':
+      return 'bg-primary/10 text-primary';
+    case 'MAINTENANCE':
+      return 'bg-warning/10 text-warning';
+    default:
+      return 'bg-muted text-foreground-muted';
+  }
+};
+
+const getStatusLabel = (status: string) => {
+  switch (status) {
+    case 'AVAILABLE':
+      return 'Slobodno';
+    case 'BOOKED':
+      return 'Zauzeto';
+    case 'MAINTENANCE':
+      return 'Održavanje';
+    default:
+      return status;
+  }
+};
+
+const getDestinationLabel = (destination: string) => {
+  const dest = ALL_DESTINATIONS.find((d) => d.value === destination);
+  return dest?.label || destination;
+};
+
 export default function AdminAccommodationsPage() {
   const t = useTranslations('admin');
+  const [page, setPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [locationFilter, setLocationFilter] = useState<string>('all');
+  const [isDeleting, setIsDeleting] = useState<string | null>(null);
+  const [deleteDialog, setDeleteDialog] = useState<{
+    open: boolean;
+    accommodation: AdminAccommodation | null;
+  }>({
+    open: false,
+    accommodation: null,
+  });
+  const [formDialog, setFormDialog] = useState<{
+    open: boolean;
+    accommodation: AdminAccommodation | null;
+  }>({
+    open: false,
+    accommodation: null,
+  });
+  const [detailDialog, setDetailDialog] = useState<{
+    open: boolean;
+    accommodation: AdminAccommodation | null;
+  }>({
+    open: false,
+    accommodation: null,
+  });
 
-  // Fetch accommodations
-  const { data, isLoading, error } = useApi<AccommodationsResponse>('/api/admin/accommodations?limit=100');
+  // Build API URL with filters
+  const buildApiUrl = useCallback(() => {
+    const params = new URLSearchParams();
+    params.set('page', page.toString());
+    params.set('limit', PAGE_SIZE.toString());
 
-  const filteredAccommodations = useMemo(() => {
-    if (!data?.accommodations) return [];
+    if (debouncedSearch) {
+      params.set('search', debouncedSearch);
+    }
+    if (statusFilter !== 'all') {
+      params.set('status', statusFilter);
+    }
+    if (locationFilter !== 'all') {
+      params.set('destination', locationFilter);
+    }
 
-    return data.accommodations.filter((acc) => {
-      const matchesSearch =
-        acc.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        acc.owner?.name?.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesStatus = statusFilter === 'all' || acc.status === statusFilter;
-      const matchesLocation = locationFilter === 'all' || acc.destination === locationFilter;
-      return matchesSearch && matchesStatus && matchesLocation;
-    });
-  }, [data?.accommodations, searchQuery, statusFilter, locationFilter]);
+    return `/api/admin/accommodations?${params.toString()}`;
+  }, [page, debouncedSearch, statusFilter, locationFilter]);
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'AVAILABLE':
-        return 'bg-success/10 text-success';
-      case 'BOOKED':
-        return 'bg-primary/10 text-primary';
-      case 'MAINTENANCE':
-        return 'bg-warning/10 text-warning';
-      default:
-        return 'bg-muted text-foreground-muted';
+  // Fetch accommodations with server-side filtering
+  const { data, isLoading, error, refetch } = useApi<AccommodationsResponse>(buildApiUrl());
+
+  // Debounce search input
+  const debouncedSetSearch = useDebouncedCallback((value: string) => {
+    setDebouncedSearch(value);
+    setPage(1); // Reset to first page on search
+  }, 300);
+
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value);
+    debouncedSetSearch(value);
+  };
+
+  const handleStatusChange = (value: string) => {
+    setStatusFilter(value);
+    setPage(1);
+  };
+
+  const handleLocationChange = (value: string) => {
+    setLocationFilter(value);
+    setPage(1);
+  };
+
+  const handlePageChange = (newPage: number) => {
+    setPage(newPage + 1); // DataTable uses 0-indexed, API uses 1-indexed
+  };
+
+  const openDeleteDialog = (accommodation: AdminAccommodation) => {
+    setDeleteDialog({ open: true, accommodation });
+  };
+
+  const openAddDialog = () => {
+    setFormDialog({ open: true, accommodation: null });
+  };
+
+  const openEditDialog = (accommodation: AdminAccommodation) => {
+    setFormDialog({ open: true, accommodation });
+  };
+
+  const openDetailDialog = (accommodation: AdminAccommodation) => {
+    setDetailDialog({ open: true, accommodation });
+  };
+
+  const handleDelete = async () => {
+    if (!deleteDialog.accommodation) return;
+
+    setIsDeleting(deleteDialog.accommodation.id);
+    try {
+      const response = await fetch(`/api/admin/accommodations/${deleteDialog.accommodation.id}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Greška pri brisanju');
+      }
+
+      refetch();
+    } catch (err) {
+      console.error('Error deleting accommodation:', err);
+      toast.error(err instanceof Error ? err.message : 'Greška pri brisanju');
+    } finally {
+      setIsDeleting(null);
     }
   };
 
-  const getStatusLabel = (status: string) => {
-    switch (status) {
-      case 'AVAILABLE':
-        return 'Slobodno';
-      case 'BOOKED':
-        return 'Zauzeto';
-      case 'MAINTENANCE':
-        return 'Održavanje';
-      default:
-        return status;
-    }
-  };
+  const columns: ColumnDef<AdminAccommodation>[] = [
+    {
+      accessorKey: 'name',
+      header: 'Smeštaj',
+      cell: ({ row }) => (
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted">
+            <Building2 className="h-5 w-5 text-foreground-muted" />
+          </div>
+          <div>
+            <p className="font-medium">{row.original.name}</p>
+            <p className="text-sm text-foreground-muted">{row.original.type}</p>
+          </div>
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'owner.name',
+      header: 'Vlasnik',
+      cell: ({ row }) => (
+        <div className="flex items-center gap-2">
+          <User className="h-4 w-4 text-foreground-muted" />
+          <span className="text-sm">{row.original.owner?.name || 'N/A'}</span>
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'destination',
+      header: 'Lokacija',
+      cell: ({ row }) => (
+        <div className="flex items-center gap-2">
+          <MapPin className="h-4 w-4 text-foreground-muted" />
+          <span className="text-sm">{getDestinationLabel(row.original.destination)}</span>
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'minPricePerNight',
+      header: 'Cena',
+      cell: ({ row }) => (
+        <>
+          <span className="font-medium">
+            {row.original.minPricePerNight ? formatPrice(row.original.minPricePerNight) : 'N/A'}
+          </span>
+          {row.original.minPricePerNight && (
+            <span className="text-sm text-foreground-muted"> /noć</span>
+          )}
+        </>
+      ),
+    },
+    {
+      accessorKey: 'status',
+      header: 'Status',
+      cell: ({ row }) => (
+        <span
+          className={cn('rounded-full px-2 py-1 text-xs font-medium', getStatusColor(row.original.status))}
+        >
+          {getStatusLabel(row.original.status)}
+        </span>
+      ),
+    },
+    {
+      accessorKey: '_count.bookings',
+      header: 'Rezervacije',
+      cell: ({ row }) => <span className="text-sm">{row.original._count.bookings}</span>,
+    },
+    {
+      id: 'actions',
+      header: () => <span className="sr-only">Akcije</span>,
+      enableSorting: false,
+      cell: ({ row }) => (
+        <div className="flex justify-end gap-1">
+          <SimpleTooltip content="Pregled">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 p-0"
+              onClick={() => openDetailDialog(row.original)}
+            >
+              <Eye className="h-4 w-4" />
+            </Button>
+          </SimpleTooltip>
+          <SimpleTooltip content="Izmeni">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 p-0"
+              onClick={() => openEditDialog(row.original)}
+            >
+              <Pencil className="h-4 w-4" />
+            </Button>
+          </SimpleTooltip>
+          <SimpleTooltip content="Obriši">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 p-0 text-error hover:text-error"
+              onClick={() => openDeleteDialog(row.original)}
+              disabled={isDeleting === row.original.id}
+            >
+              {isDeleting === row.original.id ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="h-4 w-4" />
+              )}
+            </Button>
+          </SimpleTooltip>
+        </div>
+      ),
+    },
+  ];
 
-  const getDestinationLabel = (destination: string) => {
-    const dest = ALL_DESTINATIONS.find((d) => d.value === destination);
-    return dest?.label || destination;
-  };
-
-  if (isLoading) {
+  if (isLoading && !data) {
     return (
       <div className="flex min-h-[400px] items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -134,6 +352,8 @@ export default function AdminAccommodationsPage() {
     );
   }
 
+  const pagination = data?.pagination ?? { page: 1, limit: PAGE_SIZE, total: 0, totalPages: 0 };
+
   return (
     <div className="p-6 lg:p-8">
       {/* Header */}
@@ -141,10 +361,10 @@ export default function AdminAccommodationsPage() {
         <div>
           <h1 className="text-2xl font-bold text-foreground sm:text-3xl">{t('accommodations')}</h1>
           <p className="mt-2 text-foreground-muted">
-            Upravljajte svim smeštajnim jedinicama u sistemu ({data?.pagination.total || 0})
+            Upravljajte svim smeštajnim jedinicama u sistemu ({pagination.total})
           </p>
         </div>
-        <Button className="gap-2">
+        <Button className="gap-2" onClick={openAddDialog}>
           <Plus className="h-4 w-4" />
           {t('addAccommodation')}
         </Button>
@@ -156,14 +376,14 @@ export default function AdminAccommodationsPage() {
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-foreground-muted" />
             <Input
-              placeholder="Pretraži po nazivu ili vlasniku..."
+              placeholder="Pretraži po nazivu ili adresi..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => handleSearchChange(e.target.value)}
               className="pl-10"
             />
           </div>
           <div className="w-full sm:w-40">
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <Select value={statusFilter} onValueChange={handleStatusChange}>
               <SelectTrigger>
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
@@ -176,7 +396,7 @@ export default function AdminAccommodationsPage() {
             </Select>
           </div>
           <div className="w-full sm:w-40">
-            <Select value={locationFilter} onValueChange={setLocationFilter}>
+            <Select value={locationFilter} onValueChange={handleLocationChange}>
               <SelectTrigger>
                 <SelectValue placeholder="Lokacija" />
               </SelectTrigger>
@@ -196,106 +416,45 @@ export default function AdminAccommodationsPage() {
       {/* Table */}
       <Card>
         <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="border-b border-border bg-muted/50">
-                <tr>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-foreground-muted">
-                    Smeštaj
-                  </th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-foreground-muted">
-                    Vlasnik
-                  </th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-foreground-muted">
-                    Lokacija
-                  </th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-foreground-muted">
-                    Cena
-                  </th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-foreground-muted">
-                    Status
-                  </th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-foreground-muted">
-                    Rezervacije
-                  </th>
-                  <th className="px-4 py-3 text-right text-sm font-medium text-foreground-muted">
-                    Akcije
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {filteredAccommodations.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="px-4 py-8 text-center text-foreground-muted">
-                      Nema pronađenih smeštaja
-                    </td>
-                  </tr>
-                ) : (
-                  filteredAccommodations.map((accommodation) => (
-                    <tr key={accommodation.id} className="hover:bg-muted/30">
-                      <td className="px-4 py-4">
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted">
-                            <Building2 className="h-5 w-5 text-foreground-muted" />
-                          </div>
-                          <div>
-                            <p className="font-medium">{accommodation.name}</p>
-                            <p className="text-sm text-foreground-muted">{accommodation.type}</p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-4">
-                        <div className="flex items-center gap-2">
-                          <User className="h-4 w-4 text-foreground-muted" />
-                          <span className="text-sm">{accommodation.owner?.name || 'N/A'}</span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-4">
-                        <div className="flex items-center gap-2">
-                          <MapPin className="h-4 w-4 text-foreground-muted" />
-                          <span className="text-sm">{getDestinationLabel(accommodation.destination)}</span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-4">
-                        <span className="font-medium">
-                          {accommodation.minPricePerNight
-                            ? formatPrice(accommodation.minPricePerNight)
-                            : 'N/A'}
-                        </span>
-                        <span className="text-sm text-foreground-muted"> /noć</span>
-                      </td>
-                      <td className="px-4 py-4">
-                        <span
-                          className={cn(
-                            'rounded-full px-2 py-1 text-xs font-medium',
-                            getStatusColor(accommodation.status)
-                          )}
-                        >
-                          {getStatusLabel(accommodation.status)}
-                        </span>
-                      </td>
-                      <td className="px-4 py-4 text-sm">{accommodation._count.bookings}</td>
-                      <td className="px-4 py-4">
-                        <div className="flex justify-end gap-2">
-                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-error">
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            columns={columns}
+            data={data?.accommodations ?? []}
+            pageIndex={pagination.page - 1}
+            pageSize={pagination.limit}
+            pageCount={pagination.totalPages}
+            totalItems={pagination.total}
+            onPageChange={handlePageChange}
+            emptyMessage="Nema pronađenih smeštaja"
+          />
         </CardContent>
       </Card>
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDialog
+        open={deleteDialog.open}
+        onOpenChange={(open) => setDeleteDialog((prev) => ({ ...prev, open }))}
+        title="Obriši smeštaj"
+        description={`Da li ste sigurni da želite da obrišete smeštaj "${deleteDialog.accommodation?.name || ''}"? Ova akcija se ne može poništiti.`}
+        confirmLabel="Obriši"
+        variant="destructive"
+        onConfirm={handleDelete}
+        isLoading={isDeleting === deleteDialog.accommodation?.id}
+      />
+
+      {/* Add/Edit Accommodation Dialog */}
+      <AccommodationFormDialog
+        open={formDialog.open}
+        onOpenChange={(open) => setFormDialog((prev) => ({ ...prev, open }))}
+        accommodation={formDialog.accommodation}
+        onSuccess={refetch}
+      />
+
+      {/* Accommodation Detail Dialog */}
+      <AccommodationDetailDialog
+        open={detailDialog.open}
+        onOpenChange={(open) => setDetailDialog((prev) => ({ ...prev, open }))}
+        accommodation={detailDialog.accommodation}
+      />
     </div>
   );
 }

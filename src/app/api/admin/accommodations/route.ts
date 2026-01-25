@@ -96,44 +96,57 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// PATCH - Update accommodation status (admin only)
-export async function PATCH(request: NextRequest) {
+// POST - Create new accommodation (admin only)
+export async function POST(request: NextRequest) {
   try {
     const session = await auth();
 
     if (!session?.user?.id) {
-      return NextResponse.json(
-        { error: 'Niste autorizovani' },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: 'Niste autorizovani' }, { status: 401 });
     }
 
     if (session.user.role !== 'ADMIN') {
-      return NextResponse.json(
-        { error: 'Nemate dozvolu za ovu akciju' },
-        { status: 403 }
-      );
+      return NextResponse.json({ error: 'Nemate dozvolu za ovu akciju' }, { status: 403 });
     }
 
     const body = await request.json();
-    const { accommodationId, status } = body;
+    const { name, type, destination, address, status, beds, rooms, ownerId, latitude, longitude } = body;
 
-    if (!accommodationId) {
+    // Validate required fields
+    if (!name || !type || !destination || !address || !ownerId) {
       return NextResponse.json(
-        { error: 'ID smeštaja je obavezan' },
+        { error: 'Naziv, tip, destinacija, adresa i vlasnik su obavezni' },
         { status: 400 }
       );
     }
 
-    const updateData: Record<string, unknown> = {};
-    if (status !== undefined) updateData.status = status;
+    // Check if owner exists
+    const owner = await prisma.user.findUnique({
+      where: { id: ownerId },
+    });
 
-    const updatedAccommodation = await prisma.accommodation.update({
-      where: { id: accommodationId },
-      data: updateData,
+    if (!owner || owner.role !== 'OWNER') {
+      return NextResponse.json({ error: 'Vlasnik nije pronađen' }, { status: 400 });
+    }
+
+    // Create accommodation
+    const newAccommodation = await prisma.accommodation.create({
+      data: {
+        name,
+        type,
+        destination,
+        address,
+        status: status || 'AVAILABLE',
+        beds: beds || 1,
+        rooms: rooms || 1,
+        ownerId,
+        latitude: latitude || 0,
+        longitude: longitude || 0,
+      },
       include: {
         owner: {
           select: {
+            id: true,
             name: true,
             email: true,
           },
@@ -141,12 +154,9 @@ export async function PATCH(request: NextRequest) {
       },
     });
 
-    return NextResponse.json(updatedAccommodation);
+    return NextResponse.json(newAccommodation, { status: 201 });
   } catch (error) {
-    console.error('Error updating accommodation:', error);
-    return NextResponse.json(
-      { error: 'Greška pri ažuriranju smeštaja' },
-      { status: 500 }
-    );
+    console.error('Error creating accommodation:', error);
+    return NextResponse.json({ error: 'Greška pri kreiranju smeštaja' }, { status: 500 });
   }
 }

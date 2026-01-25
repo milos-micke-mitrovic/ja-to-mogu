@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import { Prisma } from '@prisma/client';
+import bcrypt from 'bcryptjs';
 
 // GET - Fetch all users (admin only)
 export async function GET(request: NextRequest) {
@@ -86,65 +87,71 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// PATCH - Update user (admin only)
-export async function PATCH(request: NextRequest) {
+// POST - Create new user (admin only)
+export async function POST(request: NextRequest) {
   try {
     const session = await auth();
 
     if (!session?.user?.id) {
-      return NextResponse.json(
-        { error: 'Niste autorizovani' },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: 'Niste autorizovani' }, { status: 401 });
     }
 
     if (session.user.role !== 'ADMIN') {
-      return NextResponse.json(
-        { error: 'Nemate dozvolu za ovu akciju' },
-        { status: 403 }
-      );
+      return NextResponse.json({ error: 'Nemate dozvolu za ovu akciju' }, { status: 403 });
     }
 
     const body = await request.json();
-    const { userId, role, isActive } = body;
+    const { name, email, phone, password, role, isActive = true } = body;
 
-    if (!userId) {
+    // Validate required fields
+    if (!name || !email || !password || !role) {
       return NextResponse.json(
-        { error: 'ID korisnika je obavezan' },
+        { error: 'Ime, email, lozinka i uloga su obavezni' },
         { status: 400 }
       );
     }
 
-    // Prevent admin from changing their own role
-    if (userId === session.user.id && role) {
-      return NextResponse.json(
-        { error: 'Ne možete promeniti sopstvenu ulogu' },
-        { status: 400 }
-      );
+    // Validate role
+    if (!['OWNER', 'GUIDE', 'CLIENT'].includes(role)) {
+      return NextResponse.json({ error: 'Nevalidna uloga' }, { status: 400 });
     }
 
-    const updateData: Record<string, unknown> = {};
-    if (role !== undefined) updateData.role = role;
-    if (isActive !== undefined) updateData.isActive = isActive;
+    // Check if email already exists
+    const existingUser = await prisma.user.findUnique({
+      where: { email },
+    });
 
-    const updatedUser = await prisma.user.update({
-      where: { id: userId },
-      data: updateData,
+    if (existingUser) {
+      return NextResponse.json({ error: 'Email je već u upotrebi' }, { status: 400 });
+    }
+
+    // Hash password
+    const hashedPasswordValue = await bcrypt.hash(password, 10);
+
+    // Create user
+    const newUser = await prisma.user.create({
+      data: {
+        name,
+        email,
+        phone: phone || null,
+        hashedPassword: hashedPasswordValue,
+        role,
+        isActive,
+      },
       select: {
         id: true,
         name: true,
         email: true,
+        phone: true,
         role: true,
         isActive: true,
+        createdAt: true,
       },
     });
 
-    return NextResponse.json(updatedUser);
+    return NextResponse.json(newUser, { status: 201 });
   } catch (error) {
-    console.error('Error updating user:', error);
-    return NextResponse.json(
-      { error: 'Greška pri ažuriranju korisnika' },
-      { status: 500 }
-    );
+    console.error('Error creating user:', error);
+    return NextResponse.json({ error: 'Greška pri kreiranju korisnika' }, { status: 500 });
   }
 }

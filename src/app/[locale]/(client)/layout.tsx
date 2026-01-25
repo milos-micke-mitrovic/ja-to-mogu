@@ -1,6 +1,9 @@
 import { redirect } from 'next/navigation';
 import { auth } from '@/lib/auth';
-import { ClientHeader } from '@/components/layouts/client-header';
+import { ClientSidebar } from '@/components/layouts/client-sidebar';
+import { DashboardContent } from '@/components/layouts/dashboard-content';
+import { SidebarProvider } from '@/contexts';
+import { TooltipProvider } from '@/components/ui';
 
 interface ClientLayoutProps {
   children: React.ReactNode;
@@ -15,14 +18,17 @@ export default async function ClientLayout({ children }: ClientLayoutProps) {
 
   // Only allow CLIENT role (or ADMIN for testing)
   if (session.user.role !== 'CLIENT' && session.user.role !== 'ADMIN') {
-    // Redirect to home - type assertion needed for typed routes
     redirect('/' as Parameters<typeof redirect>[0]);
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
-      <ClientHeader user={session.user} />
-      <main className="flex-1">{children}</main>
-    </div>
+    <SidebarProvider>
+      <TooltipProvider>
+        <div className="flex min-h-screen bg-background">
+          <ClientSidebar user={session.user} />
+          <DashboardContent>{children}</DashboardContent>
+        </div>
+      </TooltipProvider>
+    </SidebarProvider>
   );
 }

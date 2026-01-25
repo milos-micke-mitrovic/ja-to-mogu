@@ -3,6 +3,7 @@ import { NextIntlClientProvider } from 'next-intl';
 import { getMessages, setRequestLocale } from 'next-intl/server';
 import { Inter, JetBrains_Mono } from 'next/font/google';
 import { notFound } from 'next/navigation';
+import { Toaster } from 'sonner';
 import { routing } from '@/i18n/routing';
 import '../globals.css';
 
@@ -45,6 +46,21 @@ export const metadata: Metadata = {
     title: 'Ja To Mogu - Last Minute Smeštaj u Grčkoj',
     description:
       'Rezervišite smeštaj u Grčkoj za danas ili sutra. Halkidiki, Olimpska regija. Brza rezervacija, vodič na terenu, siguran smeštaj.',
+    images: [
+      {
+        url: '/images/og-image.png',
+        width: 1200,
+        height: 630,
+        alt: 'Ja To Mogu - Last Minute Smeštaj u Grčkoj',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Ja To Mogu - Last Minute Smeštaj u Grčkoj',
+    description:
+      'Rezervišite smeštaj u Grčkoj za danas ili sutra. Halkidiki, Olimpska regija.',
+    images: ['/images/og-image.png'],
   },
   robots: {
     index: true,
@@ -87,6 +103,7 @@ export default async function LocaleLayout({ children, params }: LocaleLayoutPro
     <html lang={locale} suppressHydrationWarning>
       <body className={`${inter.variable} ${jetbrainsMono.variable} antialiased`}>
         <NextIntlClientProvider messages={messages}>{children}</NextIntlClientProvider>
+        <Toaster position="top-right" richColors closeButton />
       </body>
     </html>
   );
