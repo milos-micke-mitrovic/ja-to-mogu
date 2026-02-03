@@ -243,7 +243,8 @@
     "guideInfo": "Informacije o vodiču",
     "ownerInfo": "Informacije o vlasniku",
     "contactViber": "Kontaktiraj putem Vibera",
-    "contactWhatsApp": "Kontaktiraj putem WhatsAppa"
+    "contactWhatsApp": "Kontaktiraj putem WhatsAppa",
+    "journey": "Putovanje"
   },
   "admin": {
     "title": "Admin panel",
@@ -435,6 +436,11 @@
     "termsOfService": "Uslovi korišćenja",
     "privacyPolicy": "Politika privatnosti",
     "contact": "Kontakt"
+  },
+  "notFound": {
+    "title": "Stranica nije pronađena",
+    "description": "Stranica koju tražite ne postoji ili je premeštena.",
+    "backHome": "Nazad na početnu"
   },
   "meta": {
     "homeTitle": "Ja To Mogu - Last Minute Smeštaj u Grčkoj",
