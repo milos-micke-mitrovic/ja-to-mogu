@@ -13,14 +13,20 @@ type PackageType = 'BASIC' | 'BONUS';
 export default function PackagesPage() {
   const t = useTranslations('packages');
   const router = useRouter();
-  const [selectedPackage, setSelectedPackage] = useState<PackageType | null>(null);
+  // Pre-select previously chosen package if exists
+  const [selectedPackage, setSelectedPackage] = useState<PackageType | null>(() => {
+    if (typeof window === 'undefined') return null;
+    return sessionStorage.getItem('selectedPackage') as PackageType | null;
+  });
   const [isLoading, setIsLoading] = useState(false);
 
   const handleContinue = () => {
     if (!selectedPackage) return;
 
     setIsLoading(true);
-    // Store selected package in session/localStorage and navigate to payment
+    // Clear downstream data when changing package so the flow restarts clean
+    sessionStorage.removeItem('paymentData');
+    sessionStorage.removeItem('travelFormData');
     sessionStorage.setItem('selectedPackage', selectedPackage);
     router.push('/payment');
   };

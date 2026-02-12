@@ -32,6 +32,7 @@ export async function GET(request: NextRequest) {
       include: {
         accommodation: {
           include: {
+            city: true,
             owner: {
               select: {
                 id: true,
@@ -63,6 +64,14 @@ export async function GET(request: NextRequest) {
     );
   }
 }
+
+// Map frontend duration values to Prisma enum names
+const DURATION_MAP: Record<string, string> = {
+  '2-3': 'TWO_THREE',
+  '4-7': 'FOUR_SEVEN',
+  '8-10': 'EIGHT_TEN',
+  '10+': 'TEN_PLUS',
+};
 
 // POST - Create a new booking
 export async function POST(request: NextRequest) {
@@ -98,6 +107,7 @@ export async function POST(request: NextRequest) {
     // Check if accommodation is available
     const accommodation = await prisma.accommodation.findUnique({
       where: { id: accommodationId },
+      include: { city: true },
     });
 
     if (!accommodation) {
@@ -124,7 +134,7 @@ export async function POST(request: NextRequest) {
       const now = new Date();
       const availableGuide = await prisma.guideAvailability.findFirst({
         where: {
-          destination: accommodation.destination,
+          cityId: accommodation.cityId,
           isActive: true,
           availableFrom: { lte: now },
           availableTo: { gte: now },
@@ -147,7 +157,7 @@ export async function POST(request: NextRequest) {
         guideId,
         arrivalDate: new Date(arrivalDate),
         arrivalTime,
-        duration: travelFormData?.duration || 'FOUR_SEVEN',
+        duration: (DURATION_MAP[travelFormData?.duration] || 'FOUR_SEVEN') as 'TWO_THREE' | 'FOUR_SEVEN' | 'EIGHT_TEN' | 'TEN_PLUS',
         packageType,
         totalPrice,
         status: 'CONFIRMED',
@@ -164,6 +174,7 @@ export async function POST(request: NextRequest) {
       include: {
         accommodation: {
           include: {
+            city: true,
             owner: {
               select: {
                 name: true,
@@ -196,7 +207,7 @@ export async function POST(request: NextRequest) {
         amount: totalPrice,
         currency: 'RSD',
         status: 'PENDING', // Will be updated when payment is confirmed
-        paymentMethod: paymentData?.paymentMethod || 'platform',
+        paymentMethod: paymentData?.paymentMethod || 'cash',
         metadata: paymentData ? {
           payerName: paymentData.name,
           payerEmail: paymentData.email,
@@ -215,13 +226,14 @@ export async function POST(request: NextRequest) {
         guestEmail,
         accommodationName: booking.accommodation.name,
         accommodationAddress: booking.accommodation.address || '',
-        destination: booking.accommodation.destination,
+        destination: (booking.accommodation as { city?: { name: string } }).city?.name || '',
         arrivalDate: formatDate(booking.arrivalDate.toISOString()),
         duration: booking.duration,
         packageType: booking.packageType as 'BASIC' | 'BONUS',
         totalPrice: booking.totalPrice,
         ownerName: booking.accommodation.owner?.name || undefined,
         ownerPhone: booking.accommodation.owner?.phone || undefined,
+        paymentMethod: paymentData?.paymentMethod || 'cash',
       }).catch((err) => {
         console.error('Failed to send guest confirmation email:', err);
       });

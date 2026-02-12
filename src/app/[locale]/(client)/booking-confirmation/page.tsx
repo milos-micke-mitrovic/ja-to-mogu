@@ -26,13 +26,16 @@ import {
   ChevronLeft,
   Loader2,
   AlertCircle,
+  Building2,
+  Banknote,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { formatPrice, getGoogleMapsUrl } from '@/lib/utils';
+import { BANK_DETAILS } from '@/lib/constants';
 import { Link } from '@/i18n/routing';
-import { useApi } from '@/hooks';
+import { useApi, useDestinations } from '@/hooks';
 import type { Accommodation } from '@/hooks';
-import { ALL_DESTINATIONS } from '@/lib/constants';
 
 interface TravelFormData {
   name: string;
@@ -42,7 +45,7 @@ interface TravelFormData {
   arrivalDate: string;
   arrivalTime: string;
   duration: string;
-  destination?: string;
+  cityId?: string;
   hasViber?: boolean;
   hasWhatsApp?: boolean;
   // Legacy field names (in case stored with old format)
@@ -53,6 +56,7 @@ interface TravelFormData {
 
 function BookingConfirmationContent() {
   const t = useTranslations('booking');
+  const tPayment = useTranslations('payment');
   const searchParams = useSearchParams();
   const accommodationId = searchParams.get('id');
 
@@ -60,6 +64,7 @@ function BookingConfirmationContent() {
   const [isConfirming, setIsConfirming] = useState(false);
   const [isConfirmed, setIsConfirmed] = useState(false);
   const [travelData, setTravelData] = useState<TravelFormData | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<string | null>(null);
 
   // Fetch accommodation details
   const { data: accommodation, isLoading, error } = useApi<Accommodation>(
@@ -71,6 +76,12 @@ function BookingConfirmationContent() {
     const travelFormData = sessionStorage.getItem('travelFormData');
     if (travelFormData) {
       setTravelData(JSON.parse(travelFormData));
+    }
+    // Get payment method from session
+    const paymentDataStr = sessionStorage.getItem('paymentData');
+    if (paymentDataStr) {
+      const paymentDataParsed = JSON.parse(paymentDataStr);
+      setPaymentMethod(paymentDataParsed.paymentMethod || null);
     }
   }, []);
 
@@ -86,8 +97,8 @@ function BookingConfirmationContent() {
         : new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 
       // Get package data from session
-      const paymentData = sessionStorage.getItem('paymentData');
-      const packageData = paymentData ? JSON.parse(paymentData) : { packageType: 'BASIC' };
+      const paymentDataStr = sessionStorage.getItem('paymentData');
+      const packageData = paymentDataStr ? JSON.parse(paymentDataStr) : { packageType: 'BASIC' };
 
       // Create booking via API
       const response = await fetch('/api/bookings', {
@@ -108,11 +119,19 @@ function BookingConfirmationContent() {
             hasViber: travelData.hasViber || false,
             hasWhatsApp: travelData.hasWhatsApp || false,
           },
+          paymentData: {
+            paymentMethod: packageData.paymentMethod || 'cash',
+            name: packageData.name,
+            email: packageData.email,
+            phone: packageData.phone,
+            paidAt: packageData.paidAt,
+          },
         }),
       });
 
       if (!response.ok) {
-        throw new Error('Booking failed');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Greška pri kreiranju rezervacije');
       }
 
       // Clear session data
@@ -123,6 +142,8 @@ function BookingConfirmationContent() {
 
       setIsConfirmed(true);
     } catch (err) {
+      const message = err instanceof Error ? err.message : 'Greška pri kreiranju rezervacije';
+      toast.error(message);
       console.error('Booking error:', err);
     } finally {
       setIsConfirming(false);
@@ -149,11 +170,7 @@ function BookingConfirmationContent() {
   const pricePerNight = accommodation?.minPricePerNight || 0;
   const totalPrice = pricePerNight * durationDays;
 
-  // Get destination label
-  const getDestinationLabel = (destination: string) => {
-    const dest = ALL_DESTINATIONS.find((d) => d.value === destination);
-    return dest?.label || destination;
-  };
+  const { getCityName } = useDestinations();
 
   if (isLoading) {
     return (
@@ -215,7 +232,7 @@ function BookingConfirmationContent() {
               </div>
               <div>
                 <p className="text-sm text-foreground-muted">{t('destination')}</p>
-                <p className="font-medium">{getDestinationLabel(accommodation.destination)}</p>
+                <p className="font-medium">{accommodation.city?.name || getCityName(accommodation.cityId)}</p>
               </div>
               <div>
                 <p className="text-sm text-foreground-muted">{t('totalPrice')}</p>
@@ -243,6 +260,52 @@ function BookingConfirmationContent() {
           </CardFooter>
         </Card>
 
+        {/* Payment Instructions */}
+        {paymentMethod === 'bank_transfer' && (
+          <Card className="mt-6">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Building2 className="h-5 w-5 text-primary" />
+                {tPayment('bankDetails')}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-foreground-muted">{tPayment('receiver')}:</span>
+                <span className="font-medium">{BANK_DETAILS.receiverName}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-foreground-muted">{tPayment('bankName')}:</span>
+                <span className="font-medium">{BANK_DETAILS.bankName}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-foreground-muted">{tPayment('accountNumber')}:</span>
+                <span className="font-medium">{BANK_DETAILS.accountNumber}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-foreground-muted">{tPayment('model')}:</span>
+                <span className="font-medium">{BANK_DETAILS.model}</span>
+              </div>
+              <div className="mt-4 rounded-lg bg-warning-light p-3">
+                <p className="text-sm text-warning-foreground">
+                  {tPayment('bankTransferInstructions')}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {paymentMethod === 'cash' && (
+          <Card className="mt-6">
+            <CardContent className="flex items-start gap-3 pt-6">
+              <Banknote className="mt-0.5 h-5 w-5 flex-shrink-0 text-primary" />
+              <p className="text-sm text-foreground-muted">
+                {tPayment('cashInstructions')}
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
         <p className="mt-6 text-sm text-foreground-muted">
           Detalji rezervacije su poslati na vašu email adresu.
         </p>
@@ -254,7 +317,7 @@ function BookingConfirmationContent() {
     <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 lg:px-8">
       {/* Back Button */}
       <Link
-        href={`/catalog?destination=${travelData?.destination || ''}`}
+        href={`/catalog?cityId=${travelData?.cityId || ''}`}
         className="mb-6 inline-flex items-center gap-2 text-sm text-foreground-muted hover:text-foreground"
       >
         <ChevronLeft className="h-4 w-4" />
