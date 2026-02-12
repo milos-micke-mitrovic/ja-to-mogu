@@ -23,8 +23,13 @@ import {
 } from '@/components/ui';
 import { Car, MapPin, Calendar, Clock, Phone, ArrowLeft } from 'lucide-react';
 import { travelFormSchema, type TravelFormData } from '@/lib/validations/booking';
-import { DESTINATIONS, DURATION_OPTIONS } from '@/lib/constants';
+import { DURATION_OPTIONS } from '@/lib/constants';
+import { DestinationSelect } from '@/components/ui/destination-select';
 import { Link } from '@/i18n/routing';
+
+function RequiredMark() {
+  return <span className="text-error">*</span>;
+}
 
 export default function TravelFormPage() {
   const t = useTranslations('travelForm');
@@ -37,6 +42,7 @@ export default function TravelFormPage() {
     handleSubmit,
     control,
     watch,
+    setValue,
     formState: { errors },
   } = useForm<TravelFormData>({
     resolver: zodResolver(travelFormSchema),
@@ -66,8 +72,11 @@ export default function TravelFormPage() {
       // Store travel form data in session
       sessionStorage.setItem('travelFormData', JSON.stringify(data));
 
-      // Navigate to catalog with selected destination
-      router.push(`/catalog?destination=${data.destination}`);
+      // Navigate to catalog — filter by city if known, otherwise show all
+      const catalogUrl = data.cityId
+        ? `/catalog?cityId=${data.cityId}`
+        : `/catalog?destination=${encodeURIComponent(data.customDestination || '')}`;
+      router.push(catalogUrl as Parameters<typeof router.push>[0]);
     } catch (error) {
       console.error('Error submitting travel form:', error);
     } finally {
@@ -111,7 +120,7 @@ export default function TravelFormPage() {
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="name">{t('name')}</Label>
+                  <Label htmlFor="name">{t('name')} <RequiredMark /></Label>
                   <Input
                     id="name"
                     placeholder={t('namePlaceholder')}
@@ -122,7 +131,7 @@ export default function TravelFormPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="phone">{t('phone')}</Label>
+                  <Label htmlFor="phone">{t('phone')} <RequiredMark /></Label>
                   <Input
                     id="phone"
                     type="tel"
@@ -135,7 +144,7 @@ export default function TravelFormPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="email">{t('email')}</Label>
+                <Label htmlFor="email">{t('email')} <RequiredMark /></Label>
                 <Input
                   id="email"
                   type="email"
@@ -147,7 +156,7 @@ export default function TravelFormPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="address">{t('address')}</Label>
+                <Label htmlFor="address">{t('address')} <RequiredMark /></Label>
                 <Input
                   id="address"
                   placeholder={t('addressPlaceholder')}
@@ -168,7 +177,7 @@ export default function TravelFormPage() {
               <div className="grid gap-4 sm:grid-cols-2">
                 {/* Arrival Date */}
                 <div className="space-y-2">
-                  <Label>{t('arrivalDate')}</Label>
+                  <Label>{t('arrivalDate')} <RequiredMark /></Label>
                   <Controller
                     name="arrivalDate"
                     control={control}
@@ -202,7 +211,7 @@ export default function TravelFormPage() {
 
                 {/* Arrival Time */}
                 <div className="space-y-2">
-                  <Label htmlFor="arrivalTime">{t('arrivalTime')}</Label>
+                  <Label htmlFor="arrivalTime">{t('arrivalTime')} <RequiredMark /></Label>
                   <div className="relative">
                     <Clock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-foreground-muted" />
                     <Input
@@ -221,52 +230,30 @@ export default function TravelFormPage() {
 
               {/* Destination */}
               <div className="space-y-2">
-                <Label>{t('destination')}</Label>
+                <Label>{t('destination')} <RequiredMark /></Label>
                 <Controller
-                  name="destination"
+                  name="cityId"
                   control={control}
                   render={({ field }) => (
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <SelectTrigger>
-                        <SelectValue placeholder={t('destinationPlaceholder')} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <div className="px-2 py-1.5 text-xs font-semibold text-foreground-muted">
-                          Halkidiki - Kasandra
-                        </div>
-                        {DESTINATIONS.HALKIDIKI_KASANDRA.map((dest) => (
-                          <SelectItem key={dest.value} value={dest.value}>
-                            {dest.label}
-                          </SelectItem>
-                        ))}
-                        <div className="px-2 py-1.5 text-xs font-semibold text-foreground-muted">
-                          Halkidiki - Sitonija
-                        </div>
-                        {DESTINATIONS.HALKIDIKI_SITONIJA.map((dest) => (
-                          <SelectItem key={dest.value} value={dest.value}>
-                            {dest.label}
-                          </SelectItem>
-                        ))}
-                        <div className="px-2 py-1.5 text-xs font-semibold text-foreground-muted">
-                          Olimpska regija
-                        </div>
-                        {DESTINATIONS.OLIMPSKA_REGIJA.map((dest) => (
-                          <SelectItem key={dest.value} value={dest.value}>
-                            {dest.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <DestinationSelect
+                      value={field.value || ''}
+                      onValueChange={field.onChange}
+                      customDestination={watch('customDestination') || ''}
+                      onCustomDestinationChange={(val) => {
+                        setValue('customDestination', val, { shouldValidate: true });
+                      }}
+                      placeholder={t('destinationPlaceholder')}
+                    />
                   )}
                 />
-                {errors.destination && (
-                  <p className="text-sm text-error">{errors.destination.message}</p>
+                {errors.cityId && (
+                  <p className="text-sm text-error">{errors.cityId.message}</p>
                 )}
               </div>
 
               {/* Duration */}
               <div className="space-y-2">
-                <Label>{t('duration')}</Label>
+                <Label>{t('duration')} <RequiredMark /></Label>
                 <Controller
                   name="duration"
                   control={control}
@@ -293,7 +280,7 @@ export default function TravelFormPage() {
             <div className="space-y-4 border-t pt-6">
               <h3 className="flex items-center gap-2 font-medium text-foreground">
                 <Phone className="h-4 w-4 text-primary" />
-                {t('communication')}
+                {t('communication')} <RequiredMark />
               </h3>
               <p className="text-sm text-foreground-muted">{t('communicationNote')}</p>
 
@@ -346,10 +333,11 @@ export default function TravelFormPage() {
                 type="submit"
                 size="lg"
                 className="w-full gap-2"
-                disabled={isLoading || (!hasViber && !hasWhatsApp)}
+                loading={isLoading}
+                disabled={!hasViber && !hasWhatsApp}
               >
                 <Car className="h-5 w-5" />
-                {isLoading ? 'Učitavanje...' : t('submit')}
+                {t('submit')}
               </Button>
               <p className="mt-2 text-center text-sm text-foreground-muted">
                 {t('submitDescription')}

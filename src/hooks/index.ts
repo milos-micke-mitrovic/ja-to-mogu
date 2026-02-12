@@ -14,3 +14,10 @@ export {
   type Accommodation,
   type SeasonalPrice,
 } from './use-accommodations';
+export {
+  useDestinations,
+  type Country,
+  type Region,
+  type City,
+  type CityFlat,
+} from './use-destinations';

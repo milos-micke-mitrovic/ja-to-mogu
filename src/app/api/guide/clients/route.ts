@@ -71,7 +71,8 @@ export async function GET(request: NextRequest) {
           select: {
             id: true,
             name: true,
-            destination: true,
+            cityId: true,
+            city: { select: { name: true } },
             address: true,
             latitude: true,
             longitude: true,
@@ -107,6 +108,88 @@ export async function GET(request: NextRequest) {
     console.error('Error fetching guide clients:', error);
     return NextResponse.json(
       { error: 'Greška pri preuzimanju klijenata' },
+      { status: 500 }
+    );
+  }
+}
+
+// PATCH - Update journey status (guide can update their own clients)
+export async function PATCH(request: NextRequest) {
+  try {
+    const session = await auth();
+
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { error: 'Niste autorizovani' },
+        { status: 401 }
+      );
+    }
+
+    if (session.user.role !== 'GUIDE' && session.user.role !== 'ADMIN') {
+      return NextResponse.json(
+        { error: 'Nemate dozvolu za ovu akciju' },
+        { status: 403 }
+      );
+    }
+
+    const body = await request.json();
+    const { bookingId, journeyStatus } = body;
+
+    if (!bookingId || !journeyStatus) {
+      return NextResponse.json(
+        { error: 'ID rezervacije i status putovanja su obavezni' },
+        { status: 400 }
+      );
+    }
+
+    const validStatuses = ['NOT_STARTED', 'DEPARTED', 'IN_GREECE', 'ARRIVED'];
+    if (!validStatuses.includes(journeyStatus)) {
+      return NextResponse.json(
+        { error: 'Nevažeći status putovanja' },
+        { status: 400 }
+      );
+    }
+
+    // Verify guide owns this booking
+    const booking = await prisma.booking.findUnique({
+      where: { id: bookingId },
+      select: { guideId: true, journeyStatus: true },
+    });
+
+    if (!booking) {
+      return NextResponse.json(
+        { error: 'Rezervacija nije pronađena' },
+        { status: 404 }
+      );
+    }
+
+    if (session.user.role === 'GUIDE' && booking.guideId !== session.user.id) {
+      return NextResponse.json(
+        { error: 'Nemate pristup ovoj rezervaciji' },
+        { status: 403 }
+      );
+    }
+
+    // Build update data with timestamps
+    const updateData: Record<string, unknown> = { journeyStatus };
+    if (journeyStatus === 'DEPARTED') {
+      updateData.departedAt = new Date();
+    } else if (journeyStatus === 'IN_GREECE') {
+      updateData.arrivedGreeceAt = new Date();
+    } else if (journeyStatus === 'ARRIVED') {
+      updateData.arrivedDestinationAt = new Date();
+    }
+
+    const updated = await prisma.booking.update({
+      where: { id: bookingId },
+      data: updateData,
+    });
+
+    return NextResponse.json(updated);
+  } catch (error) {
+    console.error('Error updating journey status:', error);
+    return NextResponse.json(
+      { error: 'Greška pri ažuriranju statusa putovanja' },
       { status: 500 }
     );
   }

@@ -26,9 +26,11 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get('status');
     const journeyStatus = searchParams.get('journeyStatus');
     const packageType = searchParams.get('packageType');
-    const destination = searchParams.get('destination');
+    const cityId = searchParams.get('cityId');
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '20');
+
+    const search = searchParams.get('search');
 
     const where: Prisma.BookingWhereInput = {};
 
@@ -44,10 +46,19 @@ export async function GET(request: NextRequest) {
       where.packageType = packageType as Prisma.EnumPackageTypeFilter;
     }
 
-    if (destination) {
+    if (cityId) {
       where.accommodation = {
-        destination: destination as Prisma.EnumDestinationFilter,
+        cityId,
       };
+    }
+
+    if (search) {
+      where.OR = [
+        { guestName: { contains: search, mode: 'insensitive' } },
+        { guestEmail: { contains: search, mode: 'insensitive' } },
+        { guestPhone: { contains: search, mode: 'insensitive' } },
+        { accommodation: { name: { contains: search, mode: 'insensitive' } } },
+      ];
     }
 
     const [bookings, total] = await Promise.all([
@@ -66,7 +77,8 @@ export async function GET(request: NextRequest) {
             select: {
               id: true,
               name: true,
-              destination: true,
+              cityId: true,
+              city: { select: { name: true } },
               address: true,
               owner: {
                 select: {
@@ -128,7 +140,7 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    if (session.user.role !== 'ADMIN') {
+    if (session.user.role !== 'ADMIN' && session.user.role !== 'OWNER') {
       return NextResponse.json(
         { error: 'Nemate dozvolu za ovu akciju' },
         { status: 403 }
@@ -173,7 +185,7 @@ export async function PATCH(request: NextRequest) {
         accommodation: {
           select: {
             name: true,
-            destination: true,
+            city: { select: { name: true } },
           },
         },
         guide: {

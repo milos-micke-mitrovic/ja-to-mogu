@@ -37,14 +37,14 @@ import {
   Clock,
 } from 'lucide-react';
 import { Link } from '@/i18n/routing';
-import { DESTINATIONS } from '@/lib/constants';
+import { DestinationSelect } from '@/components/ui/destination-select';
 
 // Form validation schema
 const accommodationSchema = z.object({
   name: z.string().min(3, 'Naziv mora imati najmanje 3 karaktera'),
   description: z.string().optional(),
   type: z.string().min(1, 'Izaberite tip smeštaja'),
-  destination: z.string().min(1, 'Izaberite destinaciju'),
+  cityId: z.string().min(1, 'Izaberite destinaciju'),
   address: z.string().min(5, 'Adresa mora imati najmanje 5 karaktera'),
   beds: z.number().min(1, 'Minimalno 1 krevet'),
   rooms: z.number().min(1, 'Minimalno 1 soba'),
@@ -107,7 +107,7 @@ export function AccommodationForm({ mode, initialData }: AccommodationFormProps)
       name: initialData?.name || '',
       description: initialData?.description || '',
       type: initialData?.type || 'Apartman',
-      destination: initialData?.destination || '',
+      cityId: initialData?.cityId || '',
       address: initialData?.address || '',
       beds: initialData?.beds || 2,
       rooms: initialData?.rooms || 1,
@@ -158,7 +158,7 @@ export function AccommodationForm({ mode, initialData }: AccommodationFormProps)
         name: data.name,
         description: data.description,
         type: data.type,
-        destination: data.destination,
+        cityId: data.cityId,
         address: data.address,
         beds: data.beds,
         rooms: data.rooms,
@@ -276,44 +276,17 @@ export function AccommodationForm({ mode, initialData }: AccommodationFormProps)
               <div className="space-y-2">
                 <Label>Destinacija *</Label>
                 <Controller
-                  name="destination"
+                  name="cityId"
                   control={control}
                   render={({ field }) => (
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Izaberite destinaciju" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <div className="px-2 py-1.5 text-xs font-semibold text-foreground-muted">
-                          Halkidiki - Kasandra
-                        </div>
-                        {DESTINATIONS.HALKIDIKI_KASANDRA.map((dest) => (
-                          <SelectItem key={dest.value} value={dest.value}>
-                            {dest.label}
-                          </SelectItem>
-                        ))}
-                        <div className="px-2 py-1.5 text-xs font-semibold text-foreground-muted">
-                          Halkidiki - Sitonija
-                        </div>
-                        {DESTINATIONS.HALKIDIKI_SITONIJA.map((dest) => (
-                          <SelectItem key={dest.value} value={dest.value}>
-                            {dest.label}
-                          </SelectItem>
-                        ))}
-                        <div className="px-2 py-1.5 text-xs font-semibold text-foreground-muted">
-                          Olimpska regija
-                        </div>
-                        {DESTINATIONS.OLIMPSKA_REGIJA.map((dest) => (
-                          <SelectItem key={dest.value} value={dest.value}>
-                            {dest.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <DestinationSelect
+                      value={field.value}
+                      onValueChange={field.onChange}
+                    />
                   )}
                 />
-                {errors.destination && (
-                  <p className="text-sm text-error">{errors.destination.message}</p>
+                {errors.cityId && (
+                  <p className="text-sm text-error">{errors.cityId.message}</p>
                 )}
               </div>
             </div>

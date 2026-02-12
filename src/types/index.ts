@@ -16,24 +16,6 @@ export type JourneyStatus = 'NOT_STARTED' | 'DEPARTED' | 'IN_GREECE' | 'ARRIVED'
 // Duration options
 export type DurationOption = '2-3' | '4-7' | '8-10' | '10+';
 
-// Destination locations
-export type Destination =
-  | 'POLIHRONO'
-  | 'KALITEA'
-  | 'HANIOTI'
-  | 'PEFKOHORI'
-  | 'SIVIRI'
-  | 'KASANDRA_OTHER'
-  | 'NIKITI'
-  | 'NEOS_MARMARAS'
-  | 'SARTI'
-  | 'VOURVOUROU'
-  | 'SITONIJA_OTHER'
-  | 'PARALIJA'
-  | 'OLIMPIK_BIC'
-  | 'LEPTOKARIJA'
-  | 'PLATAMONA';
-
 // Season for pricing
 export type Season = 'LOW' | 'MID' | 'HIGH';
 
@@ -56,7 +38,8 @@ export interface Accommodation {
   name: string;
   description: string | null;
   type: string;
-  destination: Destination;
+  cityId: string;
+  city?: { name: string };
   address: string;
   latitude: number;
   longitude: number;
@@ -110,7 +93,7 @@ export interface Booking {
 export interface GuideAvailability {
   id: string;
   guideId: string;
-  destination: Destination;
+  cityId: string;
   availableFrom: Date;
   availableTo: Date;
   isActive: boolean;
@@ -180,7 +163,7 @@ export interface TravelFormData {
   email: string;
   phone: string;
   arrivalDate: 'TODAY' | 'TOMORROW';
-  destination: Destination;
+  cityId: string;
   duration: DurationOption;
   arrivalTime: string;
   hasViber: boolean;

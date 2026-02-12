@@ -14,6 +14,7 @@ import {
   Calendar,
   CreditCard,
   UserCircle,
+  Globe,
   Settings,
   LogOut,
   Menu,
@@ -55,6 +56,7 @@ export function AdminSidebar({ user }: AdminSidebarProps) {
     { href: '/admin/bookings', icon: Calendar, label: t('bookings') },
     { href: '/admin/payments', icon: CreditCard, label: t('payments') },
     { href: '/admin/clients', icon: UserCircle, label: t('clients') },
+    { href: '/admin/destinations', icon: Globe, label: 'Destinacije' },
     { href: '/admin/settings', icon: Settings, label: t('settings') },
   ];
 
@@ -75,7 +77,7 @@ export function AdminSidebar({ user }: AdminSidebarProps) {
             isCollapsed ? 'justify-center px-2' : 'gap-2 px-6'
           )}
         >
-          <Logo size="md" showText={!isCollapsed} />
+          <Logo size="md" showText={false} />
           {!isCollapsed && (
             <span className="rounded bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-800">
               Admin

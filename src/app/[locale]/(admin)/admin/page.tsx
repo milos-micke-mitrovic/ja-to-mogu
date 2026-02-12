@@ -16,65 +16,26 @@ import {
 import { formatPrice, formatDate } from '@/lib/utils';
 import { useApi } from '@/hooks';
 
-interface UserStats {
-  total: number;
-  owners: number;
-  guides: number;
-  clients: number;
-}
-
-interface BookingStats {
-  active: number;
-  pending: number;
-  completed: number;
+interface AdminStats {
+  users: { owners: number; guides: number; clients: number; total: number };
+  accommodations: number;
+  bookings: { active: number; pending: number; completed: number; cancelled: number };
   todayArrivals: number;
   monthlyRevenue: number;
-}
-
-interface AdminBooking {
-  id: string;
-  guestName: string;
-  status: string;
-  createdAt: string;
-  accommodation: {
-    name: string;
-  };
-}
-
-interface AccommodationStats {
-  total: number;
+  recentBookings: {
+    id: string;
+    guestName: string;
+    status: string;
+    totalPrice: number;
+    createdAt: string;
+    accommodation: { name: string };
+  }[];
 }
 
 export default function AdminDashboardPage() {
   const t = useTranslations('admin');
 
-  // Fetch admin stats from API
-  const { data: users, isLoading: loadingUsers } = useApi<{ users: { role: string }[]; total: number }>('/api/admin/users?limit=1000');
-  const { data: accommodations, isLoading: loadingAccommodations } = useApi<{ accommodations: unknown[]; total: number }>('/api/admin/accommodations?limit=1');
-  const { data: bookings, isLoading: loadingBookings } = useApi<{ bookings: AdminBooking[]; total: number }>('/api/admin/bookings?limit=5');
-
-  // Calculate stats from fetched data
-  const userStats: UserStats = {
-    total: users?.total || 0,
-    owners: users?.users?.filter((u) => u.role === 'OWNER').length || 0,
-    guides: users?.users?.filter((u) => u.role === 'GUIDE').length || 0,
-    clients: users?.users?.filter((u) => u.role === 'CLIENT').length || 0,
-  };
-
-  const bookingStats: BookingStats = {
-    active: bookings?.bookings?.filter((b) => b.status === 'CONFIRMED').length || 0,
-    pending: bookings?.bookings?.filter((b) => b.status === 'PENDING').length || 0,
-    completed: bookings?.bookings?.filter((b) => b.status === 'COMPLETED').length || 0,
-    todayArrivals: 0, // Would need specific API call
-    monthlyRevenue: 0, // Would need specific API call
-  };
-
-  const accommodationStats: AccommodationStats = {
-    total: accommodations?.total || 0,
-  };
-
-  const recentBookings = bookings?.bookings || [];
-  const isLoading = loadingUsers || loadingAccommodations || loadingBookings;
+  const { data: stats, isLoading } = useApi<AdminStats>('/api/admin/stats');
 
   if (isLoading) {
     return (
@@ -84,12 +45,19 @@ export default function AdminDashboardPage() {
     );
   }
 
+  const users = stats?.users ?? { owners: 0, guides: 0, clients: 0, total: 0 };
+  const accommodations = stats?.accommodations ?? 0;
+  const bookings = stats?.bookings ?? { active: 0, pending: 0, completed: 0, cancelled: 0 };
+  const todayArrivals = stats?.todayArrivals ?? 0;
+  const monthlyRevenue = stats?.monthlyRevenue ?? 0;
+  const recentBookings = stats?.recentBookings ?? [];
+
   return (
     <div className="p-6 lg:p-8">
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-foreground sm:text-3xl">{t('dashboard')}</h1>
-        <p className="mt-2 text-foreground-muted">Pregled celokupnog sistema</p>
+        <p className="mt-2 text-foreground-muted">{t('systemOverview')}</p>
       </div>
 
       {/* Stats Grid */}
@@ -101,7 +69,7 @@ export default function AdminDashboardPage() {
             </div>
             <div>
               <p className="text-sm text-foreground-muted">{t('accommodations')}</p>
-              <p className="text-2xl font-bold">{accommodationStats.total}</p>
+              <p className="text-2xl font-bold">{accommodations}</p>
             </div>
           </CardContent>
         </Card>
@@ -113,7 +81,7 @@ export default function AdminDashboardPage() {
             </div>
             <div>
               <p className="text-sm text-foreground-muted">{t('owners')}</p>
-              <p className="text-2xl font-bold">{userStats.owners}</p>
+              <p className="text-2xl font-bold">{users.owners}</p>
             </div>
           </CardContent>
         </Card>
@@ -125,7 +93,7 @@ export default function AdminDashboardPage() {
             </div>
             <div>
               <p className="text-sm text-foreground-muted">{t('guides')}</p>
-              <p className="text-2xl font-bold">{userStats.guides}</p>
+              <p className="text-2xl font-bold">{users.guides}</p>
             </div>
           </CardContent>
         </Card>
@@ -137,7 +105,7 @@ export default function AdminDashboardPage() {
             </div>
             <div>
               <p className="text-sm text-foreground-muted">{t('bookings')}</p>
-              <p className="text-2xl font-bold">{bookingStats.active}</p>
+              <p className="text-2xl font-bold">{bookings.active}</p>
             </div>
           </CardContent>
         </Card>
@@ -148,41 +116,41 @@ export default function AdminDashboardPage() {
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
-              <p className="text-sm text-foreground-muted">Ukupno klijenata</p>
+              <p className="text-sm text-foreground-muted">{t('totalClients')}</p>
               <Users className="h-4 w-4 text-foreground-muted" />
             </div>
-            <p className="mt-2 text-2xl font-bold">{userStats.clients}</p>
+            <p className="mt-2 text-2xl font-bold">{users.clients}</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
-              <p className="text-sm text-foreground-muted">Na čekanju</p>
+              <p className="text-sm text-foreground-muted">{t('pendingCount')}</p>
               <Clock className="h-4 w-4 text-warning" />
             </div>
-            <p className="mt-2 text-2xl font-bold text-warning">{bookingStats.pending}</p>
+            <p className="mt-2 text-2xl font-bold text-warning">{bookings.pending}</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
-              <p className="text-sm text-foreground-muted">Završeno ukupno</p>
+              <p className="text-sm text-foreground-muted">{t('completedTotal')}</p>
               <CheckCircle className="h-4 w-4 text-success" />
             </div>
-            <p className="mt-2 text-2xl font-bold text-success">{bookingStats.completed}</p>
+            <p className="mt-2 text-2xl font-bold text-success">{bookings.completed}</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
-              <p className="text-sm text-foreground-muted">Mesečni prihod</p>
+              <p className="text-sm text-foreground-muted">{t('monthlyRevenue')}</p>
               <DollarSign className="h-4 w-4 text-primary" />
             </div>
             <p className="mt-2 text-2xl font-bold text-primary">
-              {formatPrice(bookingStats.monthlyRevenue)}
+              {formatPrice(monthlyRevenue)}
             </p>
           </CardContent>
         </Card>
@@ -192,7 +160,7 @@ export default function AdminDashboardPage() {
         {/* Today's Activity */}
         <Card>
           <CardHeader>
-            <CardTitle>Današnja aktivnost</CardTitle>
+            <CardTitle>{t('todayActivity')}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid gap-4 sm:grid-cols-2">
@@ -202,8 +170,8 @@ export default function AdminDashboardPage() {
                     <TrendingUp className="h-5 w-5 text-success" />
                   </div>
                   <div>
-                    <p className="text-sm text-foreground-muted">Dolasci danas</p>
-                    <p className="text-xl font-bold">{bookingStats.todayArrivals}</p>
+                    <p className="text-sm text-foreground-muted">{t('todayArrivals')}</p>
+                    <p className="text-xl font-bold">{todayArrivals}</p>
                   </div>
                 </div>
               </div>
@@ -213,8 +181,8 @@ export default function AdminDashboardPage() {
                     <TrendingUp className="h-5 w-5 rotate-180 text-primary" />
                   </div>
                   <div>
-                    <p className="text-sm text-foreground-muted">Ukupno korisnika</p>
-                    <p className="text-xl font-bold">{userStats.total}</p>
+                    <p className="text-sm text-foreground-muted">{t('totalUsers')}</p>
+                    <p className="text-xl font-bold">{users.total}</p>
                   </div>
                 </div>
               </div>
@@ -225,13 +193,13 @@ export default function AdminDashboardPage() {
         {/* Recent Bookings */}
         <Card>
           <CardHeader>
-            <CardTitle>Poslednje rezervacije</CardTitle>
+            <CardTitle>{t('recentBookings')}</CardTitle>
           </CardHeader>
           <CardContent>
             {recentBookings.length === 0 ? (
               <div className="py-8 text-center">
                 <Calendar className="mx-auto h-12 w-12 text-foreground-muted" />
-                <p className="mt-4 text-foreground-muted">Nema rezervacija</p>
+                <p className="mt-4 text-foreground-muted">{t('noBookings')}</p>
               </div>
             ) : (
               <div className="space-y-3">
@@ -252,7 +220,7 @@ export default function AdminDashboardPage() {
                             : 'bg-warning/10 text-warning'
                         }`}
                       >
-                        {booking.status === 'CONFIRMED' ? 'Potvrđeno' : 'Na čekanju'}
+                        {booking.status === 'CONFIRMED' ? t('statusConfirmed') : t('statusPending')}
                       </span>
                       <p className="mt-1 text-xs text-foreground-muted">{formatDate(booking.createdAt)}</p>
                     </div>

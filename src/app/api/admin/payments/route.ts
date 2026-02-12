@@ -68,7 +68,7 @@ export async function GET(request: NextRequest) {
                 select: {
                   id: true,
                   name: true,
-                  destination: true,
+                  city: { select: { name: true } },
                 },
               },
             },
@@ -180,6 +180,33 @@ export async function PATCH(request: NextRequest) {
     if (!validStatuses.includes(status)) {
       return NextResponse.json(
         { error: 'Nevažeći status plaćanja' },
+        { status: 400 }
+      );
+    }
+
+    // Validate status transitions
+    const currentPayment = await prisma.payment.findUnique({
+      where: { id: paymentId },
+      select: { status: true },
+    });
+
+    if (!currentPayment) {
+      return NextResponse.json(
+        { error: 'Plaćanje nije pronađeno' },
+        { status: 404 }
+      );
+    }
+
+    const allowedTransitions: Record<string, string[]> = {
+      PENDING: ['COMPLETED', 'FAILED'],
+      COMPLETED: ['REFUNDED'],
+      FAILED: ['PENDING'],
+      REFUNDED: [],
+    };
+
+    if (!allowedTransitions[currentPayment.status]?.includes(status)) {
+      return NextResponse.json(
+        { error: `Ne možete promeniti status iz "${currentPayment.status}" u "${status}"` },
         { status: 400 }
       );
     }

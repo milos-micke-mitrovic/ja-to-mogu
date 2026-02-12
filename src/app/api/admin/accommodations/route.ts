@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const destination = searchParams.get('destination');
+    const cityId = searchParams.get('cityId');
     const status = searchParams.get('status');
     const ownerId = searchParams.get('ownerId');
     const search = searchParams.get('search');
@@ -32,8 +32,8 @@ export async function GET(request: NextRequest) {
 
     const where: Prisma.AccommodationWhereInput = {};
 
-    if (destination) {
-      where.destination = destination as Prisma.EnumDestinationFilter;
+    if (cityId) {
+      where.cityId = cityId;
     }
 
     if (status) {
@@ -61,6 +61,15 @@ export async function GET(request: NextRequest) {
               name: true,
               email: true,
               phone: true,
+            },
+          },
+          city: {
+            include: {
+              region: {
+                include: {
+                  country: true,
+                },
+              },
             },
           },
           seasonalPrices: true,
@@ -110,10 +119,10 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, type, destination, address, status, beds, rooms, ownerId, latitude, longitude } = body;
+    const { name, type, cityId, address, status, beds, rooms, ownerId, latitude, longitude } = body;
 
     // Validate required fields
-    if (!name || !type || !destination || !address || !ownerId) {
+    if (!name || !type || !cityId || !address || !ownerId) {
       return NextResponse.json(
         { error: 'Naziv, tip, destinacija, adresa i vlasnik su obavezni' },
         { status: 400 }
@@ -134,7 +143,7 @@ export async function POST(request: NextRequest) {
       data: {
         name,
         type,
-        destination,
+        cityId,
         address,
         status: status || 'AVAILABLE',
         beds: beds || 1,

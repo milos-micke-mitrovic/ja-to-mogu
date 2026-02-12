@@ -20,7 +20,7 @@ import {
   DollarSign,
   Loader2,
 } from 'lucide-react';
-import { formatPrice } from '@/lib/utils';
+import { formatPrice, cn } from '@/lib/utils';
 import { useApi, useOwnerAccommodations } from '@/hooks';
 
 interface OwnerBooking {
@@ -143,7 +143,7 @@ export default function OwnerStatisticsPage() {
         <div>
           <h1 className="text-2xl font-bold text-foreground sm:text-3xl">{t('statistics')}</h1>
           <p className="mt-2 text-foreground-muted">
-            Pratite zaradu i performanse vaših smeštaja
+            {t('trackPerformance')}
           </p>
         </div>
         <Select value={timePeriod} onValueChange={setTimePeriod}>
@@ -181,7 +181,7 @@ export default function OwnerStatisticsPage() {
               <p className="text-sm text-foreground-muted">{t('thisMonth')}</p>
               <p className="text-2xl font-bold">{formatPrice(stats.monthlyEarnings)}</p>
               <p className="text-xs text-foreground-muted">
-                Prošli mesec: {formatPrice(stats.lastMonthEarnings)}
+                {t('lastMonthEarnings')}: {formatPrice(stats.lastMonthEarnings)}
               </p>
             </div>
           </CardContent>
@@ -216,22 +216,37 @@ export default function OwnerStatisticsPage() {
         {/* Monthly Earnings Chart */}
         <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle>Mesečna zarada</CardTitle>
+            <CardTitle>{t('monthlyEarnings')}</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex h-64 items-end gap-2">
-              {monthlyData.map((data) => (
-                <div key={data.month} className="flex flex-1 flex-col items-center gap-2">
-                  <div
-                    className="w-full rounded-t bg-primary transition-all hover:bg-primary-hover"
-                    style={{
-                      height: maxEarnings > 0 ? `${(data.earnings / maxEarnings) * 100}%` : '0%',
-                      minHeight: data.earnings > 0 ? '4px' : '0',
-                    }}
-                  />
-                  <span className="text-xs text-foreground-muted">{data.month}</span>
-                </div>
-              ))}
+            <div className="flex items-end gap-1 sm:gap-2" style={{ height: '240px' }}>
+              {monthlyData.map((data) => {
+                const barHeight = maxEarnings > 1
+                  ? Math.max((data.earnings / maxEarnings) * 200, data.earnings > 0 ? 20 : 8)
+                  : 8;
+                return (
+                  <div key={data.month} className="group relative flex flex-1 flex-col items-center justify-end" style={{ height: '240px' }}>
+                    {/* Tooltip on hover */}
+                    {data.earnings > 0 && (
+                      <div className="pointer-events-none absolute left-1/2 z-10 hidden -translate-x-1/2 whitespace-nowrap rounded bg-foreground px-2 py-1 text-xs text-background group-hover:block" style={{ bottom: `${barHeight + 24}px` }}>
+                        {formatPrice(data.earnings)}
+                      </div>
+                    )}
+                    {/* Bar */}
+                    <div
+                      className={cn(
+                        'w-full rounded-t transition-all',
+                        data.earnings > 0
+                          ? 'bg-primary hover:bg-primary-hover'
+                          : 'bg-muted'
+                      )}
+                      style={{ height: `${barHeight}px` }}
+                    />
+                    {/* Month label */}
+                    <span className="mt-2 text-[10px] text-foreground-muted sm:text-xs">{data.month}</span>
+                  </div>
+                );
+              })}
             </div>
           </CardContent>
         </Card>
@@ -239,11 +254,11 @@ export default function OwnerStatisticsPage() {
         {/* Accommodation Performance */}
         <Card>
           <CardHeader>
-            <CardTitle>Performanse po smeštaju</CardTitle>
+            <CardTitle>{t('accommodationPerformance')}</CardTitle>
           </CardHeader>
           <CardContent>
             {accommodationStats.length === 0 ? (
-              <p className="text-center text-foreground-muted py-4">Nema podataka o smeštajima</p>
+              <p className="text-center text-foreground-muted py-4">{t('noAccommodationData')}</p>
             ) : (
               <div className="space-y-4">
                 {accommodationStats.map((acc) => (
@@ -254,7 +269,7 @@ export default function OwnerStatisticsPage() {
                     <div>
                       <p className="font-medium">{acc.name}</p>
                       <div className="mt-1 flex items-center gap-3 text-sm text-foreground-muted">
-                        <span>{acc.bookings} rezervacija</span>
+                        <span>{acc.bookings} {t('bookings')}</span>
                         {acc.rating > 0 && (
                           <span className="flex items-center gap-1">
                             <Star className="h-3 w-3 fill-primary text-primary" />
@@ -276,26 +291,26 @@ export default function OwnerStatisticsPage() {
         {/* Booking Stats */}
         <Card>
           <CardHeader>
-            <CardTitle>Statistika rezervacija</CardTitle>
+            <CardTitle>{t('bookingStats')}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <span className="text-foreground-muted">Ukupno rezervacija</span>
+                <span className="text-foreground-muted">{t('totalBookingsLabel')}</span>
                 <span className="font-semibold">{stats.totalBookings}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-foreground-muted">Završene</span>
+                <span className="text-foreground-muted">{t('completedLabel')}</span>
                 <span className="font-semibold text-success">{stats.completedBookings}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-foreground-muted">Otkazane</span>
+                <span className="text-foreground-muted">{t('cancelledLabel')}</span>
                 <span className="font-semibold text-error">{stats.cancelledBookings}</span>
               </div>
               {stats.totalBookings > 0 && (
                 <div className="border-t border-border pt-4">
                   <div className="flex items-center justify-between">
-                    <span className="text-foreground-muted">Stopa završetka</span>
+                    <span className="text-foreground-muted">{t('completionRate')}</span>
                     <span className="font-semibold">
                       {Math.round((stats.completedBookings / stats.totalBookings) * 100)}%
                     </span>

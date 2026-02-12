@@ -65,7 +65,7 @@ export function GuideSidebar({ user }: GuideSidebarProps) {
             isCollapsed ? 'justify-center px-2' : 'gap-2 px-6'
           )}
         >
-          <Logo size="md" showText={!isCollapsed} />
+          <Logo size="md" showText={false} />
           {!isCollapsed && (
             <span className="rounded bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800">
               Vodič

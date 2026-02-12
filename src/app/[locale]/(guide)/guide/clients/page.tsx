@@ -5,7 +5,9 @@ import { useTranslations } from 'next-intl';
 import {
   Card,
   CardContent,
+  Spinner,
   Input,
+  Button,
   Select,
   SelectContent,
   SelectItem,
@@ -17,6 +19,7 @@ import {
   Search,
   MapPin,
   Phone,
+  Mail,
   Clock,
   MessageCircle,
   Car,
@@ -25,11 +28,12 @@ import {
   Calendar,
   Home,
   ExternalLink,
-  Loader2,
+  ArrowRight,
 } from 'lucide-react';
 import { formatDate, getWhatsAppLink, getViberLink, getGoogleMapsUrl } from '@/lib/utils';
 import { cn } from '@/lib/utils';
 import { useApi } from '@/hooks';
+import { toast } from 'sonner';
 
 interface GuideClient {
   id: string;
@@ -50,7 +54,7 @@ interface GuideClient {
   accommodation: {
     id: string;
     name: string;
-    destination: string;
+    city?: { name: string };
     address: string;
     latitude: number;
     longitude: number;
@@ -66,9 +70,10 @@ export default function GuideClientsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [expandedClient, setExpandedClient] = useState<string | null>(null);
+  const [updatingStatus, setUpdatingStatus] = useState<Record<string, boolean>>({});
 
   // Fetch clients from API
-  const { data: clients, isLoading } = useApi<GuideClient[]>('/api/guide/clients');
+  const { data: clients, isLoading, refetch } = useApi<GuideClient[]>('/api/guide/clients');
 
   const filteredClients = useMemo(() => {
     if (!clients) return [];
@@ -125,10 +130,46 @@ export default function GuideClientsPage() {
     }
   };
 
+  const getNextJourneyStatus = (status: string): { nextStatus: string; label: string } | null => {
+    switch (status) {
+      case 'NOT_STARTED':
+        return { nextStatus: 'DEPARTED', label: t('nextDeparted') };
+      case 'DEPARTED':
+        return { nextStatus: 'IN_GREECE', label: t('nextInGreece') };
+      case 'IN_GREECE':
+        return { nextStatus: 'ARRIVED', label: t('nextArrived') };
+      default:
+        return null;
+    }
+  };
+
+  const handleUpdateJourneyStatus = async (bookingId: string, nextStatus: string) => {
+    setUpdatingStatus((prev) => ({ ...prev, [bookingId]: true }));
+    try {
+      const res = await fetch('/api/guide/clients', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bookingId, journeyStatus: nextStatus }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Greška pri ažuriranju statusa');
+      }
+
+      toast.success(t('journeyStatusUpdated'));
+      refetch();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t('journeyStatusError'));
+    } finally {
+      setUpdatingStatus((prev) => ({ ...prev, [bookingId]: false }));
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex min-h-[400px] items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <Spinner size="lg" />
       </div>
     );
   }
@@ -139,7 +180,7 @@ export default function GuideClientsPage() {
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-foreground sm:text-3xl">{t('clients')}</h1>
         <p className="mt-2 text-foreground-muted">
-          Pregledajte sve dodeljene klijente i pratite njihov status putovanja
+          {t('clientsDescription')}
         </p>
       </div>
 
@@ -149,7 +190,7 @@ export default function GuideClientsPage() {
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-foreground-muted" />
             <Input
-              placeholder="Pretraži po imenu ili smeštaju..."
+              placeholder={t('searchClients')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-10"
@@ -161,7 +202,7 @@ export default function GuideClientsPage() {
                 <SelectValue placeholder="Status putovanja" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Svi statusi</SelectItem>
+                <SelectItem value="all">{t('allStatuses')}</SelectItem>
                 <SelectItem value="NOT_STARTED">{t('notStarted')}</SelectItem>
                 <SelectItem value="DEPARTED">{t('departed')}</SelectItem>
                 <SelectItem value="IN_GREECE">{t('inGreece')}</SelectItem>
@@ -204,6 +245,10 @@ export default function GuideClientsPage() {
                         <p className="text-sm text-foreground-muted">{client.accommodation.name}</p>
                         <div className="mt-1 flex flex-wrap items-center gap-3 text-sm text-foreground-muted">
                           <span className="flex items-center gap-1">
+                            <MapPin className="h-4 w-4" />
+                            {client.accommodation.city?.name || '-'}
+                          </span>
+                          <span className="flex items-center gap-1">
                             <Calendar className="h-4 w-4" />
                             {formatDate(client.arrivalDate)}
                           </span>
@@ -211,6 +256,20 @@ export default function GuideClientsPage() {
                             <span className="flex items-center gap-1">
                               <Clock className="h-4 w-4" />
                               {client.arrivalTime}
+                            </span>
+                          )}
+                        </div>
+                        <div className="mt-1 flex flex-wrap items-center gap-3 text-sm text-foreground-muted">
+                          {client.guestPhone && (
+                            <span className="flex items-center gap-1">
+                              <Phone className="h-4 w-4" />
+                              {client.guestPhone}
+                            </span>
+                          )}
+                          {client.guestEmail && (
+                            <span className="flex items-center gap-1">
+                              <Mail className="h-4 w-4" />
+                              {client.guestEmail}
                             </span>
                           )}
                         </div>
@@ -236,12 +295,18 @@ export default function GuideClientsPage() {
                       <div className="grid gap-6 md:grid-cols-2">
                         {/* Client Contact */}
                         <div>
-                          <h4 className="mb-3 font-semibold">Kontakt podaci</h4>
+                          <h4 className="mb-3 font-semibold">{t('contactData')}</h4>
                           <div className="space-y-2 text-sm">
                             <div className="flex items-center gap-2">
                               <Phone className="h-4 w-4 text-foreground-muted" />
                               <span>{client.guestPhone}</span>
                             </div>
+                            {client.guestEmail && (
+                              <div className="flex items-center gap-2">
+                                <Mail className="h-4 w-4 text-foreground-muted" />
+                                <span>{client.guestEmail}</span>
+                              </div>
+                            )}
                           </div>
 
                           {/* Contact Options */}
@@ -273,7 +338,7 @@ export default function GuideClientsPage() {
 
                         {/* Accommodation Info */}
                         <div>
-                          <h4 className="mb-3 font-semibold">Smeštaj</h4>
+                          <h4 className="mb-3 font-semibold">{t('accommodationLabel')}</h4>
                           <div className="space-y-3 text-sm">
                             <div className="flex items-start gap-2">
                               <Home className="mt-0.5 h-4 w-4 flex-shrink-0 text-foreground-muted" />
@@ -286,7 +351,7 @@ export default function GuideClientsPage() {
                               <div className="flex items-start gap-2">
                                 <Users className="mt-0.5 h-4 w-4 flex-shrink-0 text-foreground-muted" />
                                 <div>
-                                  <p className="font-medium">Vlasnik: {client.accommodation.owner.name}</p>
+                                  <p className="font-medium">{t('ownerLabel')} {client.accommodation.owner.name}</p>
                                   <p className="text-foreground-muted">{client.accommodation.owner.phone}</p>
                                 </div>
                               </div>
@@ -305,12 +370,44 @@ export default function GuideClientsPage() {
                               className="inline-flex items-center gap-2 rounded-lg bg-primary/10 px-3 py-2 text-sm font-medium text-primary hover:bg-primary/20"
                             >
                               <MapPin className="h-4 w-4" />
-                              Otvori lokaciju
+                              {t('openLocation')}
                               <ExternalLink className="h-3 w-3" />
                             </a>
                           </div>
                         </div>
                       </div>
+
+                      {/* Journey Status Update */}
+                      {(() => {
+                        const next = getNextJourneyStatus(client.journeyStatus);
+                        if (!next) return null;
+                        return (
+                          <div className="mt-4 border-t border-border pt-4">
+                            <h4 className="mb-3 font-semibold">{t('journeyStatusLabel')}</h4>
+                            <div className="flex items-center gap-3">
+                              <span
+                                className={cn(
+                                  'flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium',
+                                  getJourneyStatusColor(client.journeyStatus)
+                                )}
+                              >
+                                <StatusIcon className="h-3 w-3" />
+                                {getJourneyStatusLabel(client.journeyStatus)}
+                              </span>
+                              <ArrowRight className="h-4 w-4 text-foreground-muted" />
+                              <Button
+                                size="sm"
+                                loading={!!updatingStatus[client.id]}
+                                onClick={() => handleUpdateJourneyStatus(client.id, next.nextStatus)}
+                                className="gap-2"
+                              >
+                                <ArrowRight className="h-4 w-4" />
+                                {next.label}
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </div>
                   )}
                 </CardContent>

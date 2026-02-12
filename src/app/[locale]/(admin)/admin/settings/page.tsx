@@ -14,7 +14,6 @@ import {
 } from '@/components/ui';
 import { Settings, DollarSign, MapPin, Save, AlertTriangle, Loader2 } from 'lucide-react';
 import { formatPrice } from '@/lib/utils';
-import { ALL_DESTINATIONS } from '@/lib/constants';
 import { useApi } from '@/hooks';
 import { toast } from 'sonner';
 
@@ -25,9 +24,21 @@ interface PackageSetting {
   isActive: boolean;
 }
 
+interface SettingsCity {
+  id: string;
+  name: string;
+  region: {
+    name: string;
+    country: {
+      name: string;
+    };
+  };
+}
+
 interface SettingsResponse {
   packageSettings: PackageSetting[];
-  unavailableLocations: string[];
+  unavailableCityIds: string[];
+  cities: SettingsCity[];
 }
 
 export default function AdminSettingsPage() {
@@ -40,7 +51,7 @@ export default function AdminSettingsPage() {
   // Local form state
   const [basicPrice, setBasicPrice] = useState(3000);
   const [bonusPrice, setBonusPrice] = useState(7000);
-  const [unavailableLocations, setUnavailableLocations] = useState<string[]>([]);
+  const [unavailableCityIds, setUnavailableCityIds] = useState<string[]>([]);
 
   // Initialize form with fetched data
   useEffect(() => {
@@ -50,15 +61,15 @@ export default function AdminSettingsPage() {
 
       if (basicSetting) setBasicPrice(basicSetting.price);
       if (bonusSetting) setBonusPrice(bonusSetting.price);
-      if (data.unavailableLocations) setUnavailableLocations(data.unavailableLocations);
+      if (data.unavailableCityIds) setUnavailableCityIds(data.unavailableCityIds);
     }
   }, [data]);
 
-  const handleLocationToggle = (location: string) => {
-    setUnavailableLocations((prev) =>
-      prev.includes(location)
-        ? prev.filter((l) => l !== location)
-        : [...prev, location]
+  const handleLocationToggle = (cityId: string) => {
+    setUnavailableCityIds((prev) =>
+      prev.includes(cityId)
+        ? prev.filter((l) => l !== cityId)
+        : [...prev, cityId]
     );
   };
 
@@ -74,7 +85,7 @@ export default function AdminSettingsPage() {
             { packageType: 'BASIC', price: basicPrice },
             { packageType: 'BONUS', price: bonusPrice },
           ],
-          unavailableLocations,
+          unavailableCityIds,
         }),
       });
 
@@ -84,10 +95,10 @@ export default function AdminSettingsPage() {
       }
 
       refetch();
-      toast.success('Podešavanja su uspešno sačuvana');
+      toast.success(t('settingsSaved'));
     } catch (err) {
       console.error('Error saving settings:', err);
-      toast.error(err instanceof Error ? err.message : 'Greška pri čuvanju podešavanja');
+      toast.error(err instanceof Error ? err.message : t('settingsSaveError'));
     } finally {
       setIsSaving(false);
     }
@@ -106,7 +117,7 @@ export default function AdminSettingsPage() {
       <div className="p-6 lg:p-8">
         <Card className="p-12 text-center">
           <Settings className="mx-auto h-12 w-12 text-error" />
-          <h3 className="mt-4 text-lg font-medium text-error">Greška pri učitavanju</h3>
+          <h3 className="mt-4 text-lg font-medium text-error">{t('loadError')}</h3>
           <p className="mt-2 text-foreground-muted">{error}</p>
         </Card>
       </div>
@@ -118,7 +129,7 @@ export default function AdminSettingsPage() {
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-foreground sm:text-3xl">{t('settings')}</h1>
-        <p className="mt-2 text-foreground-muted">Podešavanja platforme</p>
+        <p className="mt-2 text-foreground-muted">{t('platformSettings')}</p>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
@@ -140,7 +151,7 @@ export default function AdminSettingsPage() {
                 onChange={(e) => setBasicPrice(Number(e.target.value) || 0)}
               />
               <p className="text-sm text-foreground-muted">
-                Trenutno: {formatPrice(basicPrice)}
+                {t('current')}: {formatPrice(basicPrice)}
               </p>
             </div>
 
@@ -153,7 +164,7 @@ export default function AdminSettingsPage() {
                 onChange={(e) => setBonusPrice(Number(e.target.value) || 0)}
               />
               <p className="text-sm text-foreground-muted">
-                Trenutno: {formatPrice(bonusPrice)}
+                {t('current')}: {formatPrice(bonusPrice)}
               </p>
             </div>
           </CardContent>
@@ -164,20 +175,20 @@ export default function AdminSettingsPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Settings className="h-5 w-5 text-primary" />
-              Informacije o rezervacijama
+              {t('reservationInfo')}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="rounded-lg bg-muted p-4">
               <p className="text-sm text-foreground-muted">
-                <strong>Vreme čuvanja rezervacije:</strong> 36 sati
+                <strong>{t('reservationHoldTime')}:</strong> 36 sati
               </p>
               <p className="mt-2 text-sm text-foreground-muted">
-                <strong>Kompenzacija za otkazivanje:</strong> 20 EUR
+                <strong>{t('cancellationCompensation')}:</strong> 20 EUR
               </p>
             </div>
             <p className="text-xs text-foreground-muted">
-              Ova podešavanja su fiksna i definisana uslovima korišćenja platforme.
+              {t('fixedSettingsNote')}
             </p>
           </CardContent>
         </Card>
@@ -192,103 +203,50 @@ export default function AdminSettingsPage() {
           </CardHeader>
           <CardContent>
             <p className="mb-4 text-sm text-foreground-muted">
-              Označite lokacije koje trenutno nisu dostupne za rezervaciju
+              {t('unavailableDescription')}
             </p>
 
             <div className="grid gap-6 md:grid-cols-3">
-              {/* Halkidiki - Kasandra */}
-              <div>
-                <h4 className="mb-3 text-sm font-medium">Halkidiki - Kasandra</h4>
-                <div className="space-y-2">
-                  {ALL_DESTINATIONS.filter((d) =>
-                    ['POLIHRONO', 'HANIOTI', 'PEFKOHORI', 'KRIOPIGI', 'KALITEA', 'AFITOS', 'SANI'].includes(
-                      d.value
-                    )
-                  ).map((dest) => (
-                    <div key={dest.value} className="flex items-center gap-3">
-                      <Checkbox
-                        id={dest.value}
-                        checked={unavailableLocations.includes(dest.value)}
-                        onCheckedChange={() => handleLocationToggle(dest.value)}
-                      />
-                      <Label
-                        htmlFor={dest.value}
-                        className={`cursor-pointer text-sm ${
-                          unavailableLocations.includes(dest.value)
-                            ? 'text-error line-through'
-                            : ''
-                        }`}
-                      >
-                        {dest.label}
-                      </Label>
-                    </div>
-                  ))}
+              {Object.entries(
+                (data?.cities || []).reduce<Record<string, SettingsCity[]>>((acc, city) => {
+                  const regionName = city.region.name;
+                  if (!acc[regionName]) acc[regionName] = [];
+                  acc[regionName].push(city);
+                  return acc;
+                }, {})
+              ).map(([regionName, cities]) => (
+                <div key={regionName}>
+                  <h4 className="mb-3 text-sm font-medium">{regionName}</h4>
+                  <div className="space-y-2">
+                    {cities.map((city) => (
+                      <div key={city.id} className="flex items-center gap-3">
+                        <Checkbox
+                          id={city.id}
+                          checked={unavailableCityIds.includes(city.id)}
+                          onCheckedChange={() => handleLocationToggle(city.id)}
+                        />
+                        <Label
+                          htmlFor={city.id}
+                          className={`cursor-pointer text-sm ${
+                            unavailableCityIds.includes(city.id)
+                              ? 'text-error line-through'
+                              : ''
+                          }`}
+                        >
+                          {city.name}
+                        </Label>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
-
-              {/* Halkidiki - Sitonija */}
-              <div>
-                <h4 className="mb-3 text-sm font-medium">Halkidiki - Sitonija</h4>
-                <div className="space-y-2">
-                  {ALL_DESTINATIONS.filter((d) =>
-                    ['NIKITI', 'NEOS_MARMARAS', 'SARTI', 'VOURVOUROU', 'TORONI'].includes(d.value)
-                  ).map((dest) => (
-                    <div key={dest.value} className="flex items-center gap-3">
-                      <Checkbox
-                        id={dest.value}
-                        checked={unavailableLocations.includes(dest.value)}
-                        onCheckedChange={() => handleLocationToggle(dest.value)}
-                      />
-                      <Label
-                        htmlFor={dest.value}
-                        className={`cursor-pointer text-sm ${
-                          unavailableLocations.includes(dest.value)
-                            ? 'text-error line-through'
-                            : ''
-                        }`}
-                      >
-                        {dest.label}
-                      </Label>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Olimpska regija */}
-              <div>
-                <h4 className="mb-3 text-sm font-medium">Olimpska regija</h4>
-                <div className="space-y-2">
-                  {ALL_DESTINATIONS.filter((d) =>
-                    ['PARALIA', 'OLIMPIK_BIC', 'LEPTOKARIJA', 'PLATAMON'].includes(d.value)
-                  ).map((dest) => (
-                    <div key={dest.value} className="flex items-center gap-3">
-                      <Checkbox
-                        id={dest.value}
-                        checked={unavailableLocations.includes(dest.value)}
-                        onCheckedChange={() => handleLocationToggle(dest.value)}
-                      />
-                      <Label
-                        htmlFor={dest.value}
-                        className={`cursor-pointer text-sm ${
-                          unavailableLocations.includes(dest.value)
-                            ? 'text-error line-through'
-                            : ''
-                        }`}
-                      >
-                        {dest.label}
-                      </Label>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              ))}
             </div>
 
-            {unavailableLocations.length > 0 && (
+            {unavailableCityIds.length > 0 && (
               <div className="mt-4 flex items-start gap-2 rounded-lg bg-warning-light p-3">
                 <AlertTriangle className="h-5 w-5 flex-shrink-0 text-warning" />
                 <p className="text-sm text-warning-foreground">
-                  {unavailableLocations.length} lokacija je označeno kao nedostupno.
-                  Klijenti neće moći da rezervišu smeštaj na tim lokacijama.
+                  {t('locationsUnavailable', { count: unavailableCityIds.length })}
                 </p>
               </div>
             )}
@@ -304,7 +262,7 @@ export default function AdminSettingsPage() {
           ) : (
             <Save className="h-4 w-4" />
           )}
-          {isSaving ? 'Čuvanje...' : 'Sačuvaj podešavanja'}
+          {isSaving ? t('saving') : t('saveSettings')}
         </Button>
       </div>
     </div>

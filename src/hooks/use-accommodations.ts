@@ -14,7 +14,8 @@ export interface Accommodation {
   name: string;
   description?: string;
   type: string;
-  destination: string;
+  cityId: string;
+  city?: { name: string };
   address: string;
   latitude: number;
   longitude: number;
@@ -44,7 +45,9 @@ export interface Accommodation {
 }
 
 interface AccommodationFilters {
-  destination?: string;
+  cityId?: string;
+  page?: number;
+  limit?: number;
   minPrice?: number;
   maxPrice?: number;
   minBeds?: number;
@@ -69,9 +72,19 @@ function buildQueryString(filters: AccommodationFilters): string {
   return queryString ? `?${queryString}` : '';
 }
 
+interface PaginatedAccommodations {
+  items: Accommodation[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
 export function useAccommodations(filters: AccommodationFilters = {}) {
   const queryString = buildQueryString(filters);
-  return useApi<Accommodation[]>(`/api/accommodations${queryString}`);
+  return useApi<PaginatedAccommodations>(`/api/accommodations${queryString}`);
 }
 
 export function useOwnerAccommodations() {
@@ -82,7 +95,7 @@ interface AccommodationInput {
   name: string;
   description?: string;
   type?: string;
-  destination: string;
+  cityId: string;
   address: string;
   latitude?: number;
   longitude?: number;

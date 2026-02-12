@@ -60,25 +60,6 @@ enum Season {
   HIGH
 }
 
-// Destination enum
-enum Destination {
-  POLIHRONO
-  KALITEA
-  HANIOTI
-  PEFKOHORI
-  SIVIRI
-  KASANDRA_OTHER
-  NIKITI
-  NEOS_MARMARAS
-  SARTI
-  VOURVOUROU
-  SITONIJA_OTHER
-  PARALIJA
-  OLIMPIK_BIC
-  LEPTOKARIJA
-  PLATAMONA
-}
-
 // Payment status enum
 enum PaymentStatus {
   PENDING
@@ -187,13 +168,70 @@ model PasswordResetToken {
   @@map("password_reset_tokens")
 }
 
+// Country model (e.g., Greece, Montenegro)
+model Country {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+
+  regions   Region[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("countries")
+}
+
+// Region model (e.g., Kasandra, Sitonija)
+model Region {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  countryId String
+  country   Country  @relation(fields: [countryId], references: [id], onDelete: Cascade)
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+
+  cities    City[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([countryId])
+  @@map("regions")
+}
+
+// City model (e.g., Polihrono, Hanioti)
+model City {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  regionId  String
+  region    Region   @relation(fields: [regionId], references: [id], onDelete: Cascade)
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+
+  accommodations       Accommodation[]
+  guideAvailabilities  GuideAvailability[]
+  locationAvailability LocationAvailability?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([regionId])
+  @@map("cities")
+}
+
 // Accommodation model
 model Accommodation {
   id              String              @id @default(cuid())
   name            String
   description     String?             @db.Text
   type            String              // Apartman, Soba, Vila, etc.
-  destination     Destination
+  cityId          String
+  city            City                @relation(fields: [cityId], references: [id])
   address         String
   latitude        Float
   longitude       Float
@@ -225,7 +263,7 @@ model Accommodation {
   createdAt       DateTime            @default(now())
   updatedAt       DateTime            @updatedAt
 
-  @@index([destination, status])
+  @@index([cityId, status])
   @@index([ownerId])
   @@map("accommodations")
 }
@@ -314,7 +352,8 @@ model GuideAvailability {
   id            String      @id @default(cuid())
   guideId       String
   guide         User        @relation("GuideAvailabilities", fields: [guideId], references: [id], onDelete: Cascade)
-  destination   Destination
+  cityId        String
+  city          City        @relation(fields: [cityId], references: [id])
   availableFrom DateTime
   availableTo   DateTime
   isActive      Boolean     @default(true)
@@ -323,7 +362,7 @@ model GuideAvailability {
   updatedAt     DateTime    @updatedAt
 
   @@index([guideId])
-  @@index([destination, availableFrom, availableTo])
+  @@index([cityId, availableFrom, availableTo])
   @@map("guide_availabilities")
 }
 
@@ -372,12 +411,13 @@ model Payment {
 
 // Location availability settings (admin can block locations)
 model LocationAvailability {
-  id          String      @id @default(cuid())
-  destination Destination @unique
-  isAvailable Boolean     @default(true)
-  message     String?     // Custom message when not available
+  id          String   @id @default(cuid())
+  cityId      String   @unique
+  city        City     @relation(fields: [cityId], references: [id])
+  isAvailable Boolean  @default(true)
+  message     String?  // Custom message when not available
 
-  updatedAt   DateTime    @updatedAt
+  updatedAt   DateTime @updatedAt
 
   @@map("location_availability")
 }

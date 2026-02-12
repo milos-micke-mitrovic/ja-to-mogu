@@ -56,7 +56,7 @@ interface AdminBooking {
   accommodation: {
     id: string;
     name: string;
-    destination: string;
+    city?: { name: string };
     address: string;
     owner: {
       id: string;
@@ -149,7 +149,7 @@ export default function AdminBookingsPage() {
   const columns: ColumnDef<AdminBooking>[] = [
     {
       accessorKey: 'guestName',
-      header: 'Gost',
+      header: t('guest'),
       cell: ({ row }) => (
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
@@ -164,20 +164,20 @@ export default function AdminBookingsPage() {
     },
     {
       accessorKey: 'accommodation.name',
-      header: 'Smeštaj',
+      header: t('accommodation'),
       cell: ({ row }) => (
         <div className="flex items-center gap-2 text-sm">
           <Building2 className="h-4 w-4 text-foreground-muted" />
           <div>
             <p>{row.original.accommodation?.name || 'N/A'}</p>
-            <p className="text-xs text-foreground-muted">{row.original.accommodation?.destination}</p>
+            <p className="text-xs text-foreground-muted">{row.original.accommodation?.city?.name || '-'}</p>
           </div>
         </div>
       ),
     },
     {
       accessorKey: 'arrivalDate',
-      header: 'Dolazak',
+      header: t('arrival'),
       cell: ({ row }) => (
         <div className="flex items-center gap-2 text-sm">
           <Calendar className="h-4 w-4 text-foreground-muted" />
@@ -190,7 +190,7 @@ export default function AdminBookingsPage() {
     },
     {
       accessorKey: 'packageType',
-      header: 'Paket',
+      header: t('package'),
       cell: ({ row }) => (
         <span
           className={cn(
@@ -206,7 +206,7 @@ export default function AdminBookingsPage() {
     },
     {
       accessorKey: 'status',
-      header: 'Status',
+      header: t('status'),
       cell: ({ row }) => (
         <span
           className={cn(
@@ -221,7 +221,7 @@ export default function AdminBookingsPage() {
     },
     {
       accessorKey: 'totalPrice',
-      header: 'Cena',
+      header: t('price'),
       cell: ({ row }) => (
         <span className="font-bold text-primary">{formatPrice(row.original.totalPrice)}</span>
       ),
@@ -232,7 +232,7 @@ export default function AdminBookingsPage() {
       enableSorting: false,
       cell: ({ row }) => (
         <div className="flex justify-end">
-          <SimpleTooltip content="Pregled">
+          <SimpleTooltip content={t('preview')}>
             <Button
               variant="ghost"
               size="sm"
@@ -262,7 +262,7 @@ export default function AdminBookingsPage() {
     return `/api/admin/bookings?${params.toString()}`;
   }, [page, debouncedSearch, statusFilter]);
 
-  const { data, isLoading, error } = useApi<BookingsResponse>(buildApiUrl());
+  const { data, isLoading, error, refetch } = useApi<BookingsResponse>(buildApiUrl());
 
   const debouncedSetSearch = useDebouncedCallback((value: string) => {
     setDebouncedSearch(value);
@@ -296,7 +296,7 @@ export default function AdminBookingsPage() {
       <div className="p-6 lg:p-8">
         <Card className="p-12 text-center">
           <Calendar className="mx-auto h-12 w-12 text-error" />
-          <h3 className="mt-4 text-lg font-medium text-error">Greška pri učitavanju</h3>
+          <h3 className="mt-4 text-lg font-medium text-error">{t('loadError')}</h3>
           <p className="mt-2 text-foreground-muted">{error}</p>
         </Card>
       </div>
@@ -311,7 +311,7 @@ export default function AdminBookingsPage() {
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-foreground sm:text-3xl">{t('allBookings')}</h1>
         <p className="mt-2 text-foreground-muted">
-          Pregled svih rezervacija u sistemu ({pagination.total})
+          {t('bookingsOverview', { count: pagination.total })}
         </p>
       </div>
 
@@ -321,7 +321,7 @@ export default function AdminBookingsPage() {
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-foreground-muted" />
             <Input
-              placeholder="Pretraži po klijentu ili smeštaju..."
+              placeholder={t('searchBookings')}
               value={searchQuery}
               onChange={(e) => handleSearchChange(e.target.value)}
               className="pl-10"
@@ -333,11 +333,11 @@ export default function AdminBookingsPage() {
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Svi statusi</SelectItem>
-                <SelectItem value="PENDING">Na čekanju</SelectItem>
-                <SelectItem value="CONFIRMED">Potvrđeno</SelectItem>
-                <SelectItem value="COMPLETED">Završeno</SelectItem>
-                <SelectItem value="CANCELLED">Otkazano</SelectItem>
+                <SelectItem value="all">{t('allStatuses')}</SelectItem>
+                <SelectItem value="PENDING">{t('statusPending')}</SelectItem>
+                <SelectItem value="CONFIRMED">{t('statusConfirmed')}</SelectItem>
+                <SelectItem value="COMPLETED">{t('statusCompleted')}</SelectItem>
+                <SelectItem value="CANCELLED">{t('statusCancelled')}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -355,7 +355,7 @@ export default function AdminBookingsPage() {
             pageCount={pagination.totalPages}
             totalItems={pagination.total}
             onPageChange={handlePageChange}
-            emptyMessage="Nema pronađenih rezervacija"
+            emptyMessage={t('noBookingsFound')}
           />
         </CardContent>
       </Card>
@@ -365,6 +365,18 @@ export default function AdminBookingsPage() {
         open={detailDialog.open}
         onOpenChange={(open) => setDetailDialog((prev) => ({ ...prev, open }))}
         booking={detailDialog.booking}
+        onAction={async (bookingId, action) => {
+          const res = await fetch('/api/admin/bookings', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ bookingId, ...action }),
+          });
+          if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            throw new Error(data.error || 'Greška pri ažuriranju');
+          }
+          refetch();
+        }}
       />
     </div>
   );

@@ -69,7 +69,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     }
 
     const body = await request.json();
-    const { name, type, destination, address, status, beds, rooms, ownerId } = body;
+    const { name, type, cityId, address, status, beds, rooms, ownerId } = body;
 
     // Check if accommodation exists
     const existingAccommodation = await prisma.accommodation.findUnique({
@@ -94,7 +94,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     const updateData: Record<string, unknown> = {};
     if (name !== undefined) updateData.name = name;
     if (type !== undefined) updateData.type = type;
-    if (destination !== undefined) updateData.destination = destination;
+    if (cityId !== undefined) updateData.cityId = cityId;
     if (address !== undefined) updateData.address = address;
     if (status !== undefined) updateData.status = status;
     if (beds !== undefined) updateData.beds = beds;

@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-html-link-for-pages */
 export default function RootNotFound() {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center px-4">

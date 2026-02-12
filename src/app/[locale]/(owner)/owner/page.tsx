@@ -31,7 +31,7 @@ interface OwnerBooking {
   accommodation: {
     id: string;
     name: string;
-    destination: string;
+    city?: { name: string };
     address: string;
   };
   user: {

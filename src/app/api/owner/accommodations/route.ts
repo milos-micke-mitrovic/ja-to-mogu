@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
       name,
       description,
       type,
-      destination,
+      cityId,
       address,
       latitude,
       longitude,
@@ -121,7 +121,7 @@ export async function POST(request: NextRequest) {
     } = body;
 
     // Validate required fields
-    if (!name || !destination || !address || !beds || !rooms) {
+    if (!name || !cityId || !address || !beds || !rooms) {
       return NextResponse.json(
         { error: 'Sva obavezna polja moraju biti popunjena' },
         { status: 400 }
@@ -134,7 +134,7 @@ export async function POST(request: NextRequest) {
         name,
         description,
         type: type || 'Apartman',
-        destination,
+        cityId,
         address,
         latitude: latitude || 0,
         longitude: longitude || 0,

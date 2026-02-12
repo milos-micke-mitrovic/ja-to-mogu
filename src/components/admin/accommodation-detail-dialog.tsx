@@ -19,7 +19,7 @@ import {
   Star,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { ALL_DESTINATIONS } from '@/lib/constants';
+import { useDestinations } from '@/hooks/use-destinations';
 
 // Dynamic import for Map to avoid SSR issues with Leaflet
 const Map = dynamic(() => import('@/components/ui/map').then((mod) => mod.Map), {
@@ -38,7 +38,8 @@ interface AccommodationDetailDialogProps {
     id: string;
     name: string;
     type: string;
-    destination: string;
+    cityId: string;
+    city?: { name: string; region?: { name: string; country?: { name: string } } };
     address: string;
     status: string;
     minPricePerNight: number | null;
@@ -85,16 +86,13 @@ const getStatusLabel = (status: string) => {
   }
 };
 
-const getDestinationLabel = (destination: string) => {
-  const dest = ALL_DESTINATIONS.find((d) => d.value === destination);
-  return dest?.label || destination;
-};
-
 export function AccommodationDetailDialog({
   open,
   onOpenChange,
   accommodation,
 }: AccommodationDetailDialogProps) {
+  const { getCityName } = useDestinations();
+
   if (!accommodation) return null;
 
   return (
@@ -135,7 +133,7 @@ export function AccommodationDetailDialog({
             <div className="grid gap-2 text-sm">
               <div className="flex justify-between">
                 <span className="text-foreground-muted">Destinacija:</span>
-                <span className="font-medium">{getDestinationLabel(accommodation.destination)}</span>
+                <span className="font-medium">{accommodation.city?.name || getCityName(accommodation.cityId)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-foreground-muted">Adresa:</span>

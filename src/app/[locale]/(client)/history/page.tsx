@@ -40,7 +40,7 @@ export default async function HistoryPage({ params }: HistoryPageProps) {
       accommodation: {
         select: {
           name: true,
-          destination: true,
+          city: { select: { name: true } },
           address: true,
         },
       },

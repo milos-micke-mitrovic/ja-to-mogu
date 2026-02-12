@@ -28,6 +28,8 @@ import {
   RefreshCw,
   Loader2,
   Calendar,
+  Landmark,
+  Banknote,
 } from 'lucide-react';
 import { formatPrice, formatDate } from '@/lib/utils';
 import { cn } from '@/lib/utils';
@@ -57,7 +59,7 @@ interface AdminPayment {
     accommodation: {
       id: string;
       name: string;
-      destination: string;
+      city?: { name: string };
     };
   };
 }
@@ -191,18 +193,18 @@ export default function AdminPaymentsPage() {
   const openConfirmDialog = (paymentId: string, newStatus: string) => {
     const dialogConfig = {
       COMPLETED: {
-        title: 'Potvrdi plaćanje',
-        description: 'Da li ste sigurni da želite da potvrdite ovo plaćanje? Ova akcija će označiti plaćanje kao završeno.',
+        title: t('confirmPayment'),
+        description: t('confirmPaymentDesc'),
         variant: 'default' as const,
       },
       FAILED: {
-        title: 'Odbij plaćanje',
-        description: 'Da li ste sigurni da želite da odbijete ovo plaćanje? Ova akcija se ne može poništiti.',
+        title: t('rejectPayment'),
+        description: t('rejectPaymentDesc'),
         variant: 'destructive' as const,
       },
       REFUNDED: {
-        title: 'Refundiraj plaćanje',
-        description: 'Da li ste sigurni da želite da refundirate ovo plaćanje? Sredstva će biti vraćena klijentu.',
+        title: t('refundPayment'),
+        description: t('refundPaymentDesc'),
         variant: 'destructive' as const,
       },
     };
@@ -235,11 +237,11 @@ export default function AdminPaymentsPage() {
       refetch();
 
       const statusMessages: Record<string, string> = {
-        COMPLETED: 'Plaćanje je potvrđeno',
-        FAILED: 'Plaćanje je odbijeno',
-        REFUNDED: 'Plaćanje je refundirano',
+        COMPLETED: t('paymentConfirmed'),
+        FAILED: t('paymentRejected'),
+        REFUNDED: t('paymentRefundedMsg'),
       };
-      toast.success(statusMessages[newStatus] || 'Status plaćanja je ažuriran');
+      toast.success(statusMessages[newStatus] || t('paymentStatusUpdated'));
     } catch (err) {
       console.error('Error updating payment:', err);
       toast.error('Greška pri ažuriranju statusa plaćanja');
@@ -251,7 +253,7 @@ export default function AdminPaymentsPage() {
   const columns: ColumnDef<AdminPayment>[] = [
     {
       accessorKey: 'user.name',
-      header: 'Klijent',
+      header: t('client'),
       cell: ({ row }) => (
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
@@ -266,7 +268,7 @@ export default function AdminPaymentsPage() {
     },
     {
       accessorKey: 'booking.accommodation.name',
-      header: 'Smeštaj',
+      header: t('accommodation'),
       cell: ({ row }) => (
         <div className="flex items-center gap-2 text-sm">
           <Building2 className="h-4 w-4 text-foreground-muted" />
@@ -276,7 +278,7 @@ export default function AdminPaymentsPage() {
     },
     {
       accessorKey: 'booking.packageType',
-      header: 'Paket',
+      header: t('package'),
       cell: ({ row }) => (
         <span
           className={cn(
@@ -291,8 +293,34 @@ export default function AdminPaymentsPage() {
       ),
     },
     {
+      accessorKey: 'paymentMethod',
+      header: t('paymentMethod'),
+      cell: ({ row }) => {
+        const method = row.original.paymentMethod;
+        if (method === 'bank_transfer') {
+          return (
+            <span className="flex w-fit items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
+              <Landmark className="h-3 w-3" />
+              {t('bankTransfer')}
+            </span>
+          );
+        }
+        if (method === 'cash') {
+          return (
+            <span className="flex w-fit items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">
+              <Banknote className="h-3 w-3" />
+              {t('cashPayment')}
+            </span>
+          );
+        }
+        return (
+          <span className="text-xs text-foreground-muted">{method || '-'}</span>
+        );
+      },
+    },
+    {
       accessorKey: 'createdAt',
-      header: 'Datum',
+      header: t('date'),
       cell: ({ row }) => (
         <div className="flex items-center gap-2 text-sm text-foreground-muted">
           <Calendar className="h-4 w-4" />
@@ -302,7 +330,7 @@ export default function AdminPaymentsPage() {
     },
     {
       accessorKey: 'status',
-      header: 'Status',
+      header: t('status'),
       cell: ({ row }) => (
         <span
           className={cn(
@@ -317,7 +345,7 @@ export default function AdminPaymentsPage() {
     },
     {
       accessorKey: 'amount',
-      header: 'Iznos',
+      header: t('amount'),
       cell: ({ row }) => (
         <span className="text-lg font-bold text-primary">{formatPrice(row.original.amount)}</span>
       ),
@@ -332,7 +360,7 @@ export default function AdminPaymentsPage() {
           <div className="flex justify-end gap-1">
             {payment.status === 'PENDING' && (
               <>
-                <SimpleTooltip content="Potvrdi">
+                <SimpleTooltip content={t('confirm')}>
                   <Button
                     size="sm"
                     onClick={() => openConfirmDialog(payment.id, 'COMPLETED')}
@@ -346,7 +374,7 @@ export default function AdminPaymentsPage() {
                     )}
                   </Button>
                 </SimpleTooltip>
-                <SimpleTooltip content="Odbij">
+                <SimpleTooltip content={t('reject')}>
                   <Button
                     size="sm"
                     variant="ghost"
@@ -360,7 +388,7 @@ export default function AdminPaymentsPage() {
               </>
             )}
             {payment.status === 'COMPLETED' && (
-              <SimpleTooltip content="Refundiraj">
+              <SimpleTooltip content={t('refund')}>
                 <Button
                   size="sm"
                   variant="ghost"
@@ -395,7 +423,7 @@ export default function AdminPaymentsPage() {
       <div className="p-6 lg:p-8">
         <Card className="p-12 text-center">
           <CreditCard className="mx-auto h-12 w-12 text-error" />
-          <h3 className="mt-4 text-lg font-medium text-error">Greška pri učitavanju</h3>
+          <h3 className="mt-4 text-lg font-medium text-error">{t('loadError')}</h3>
           <p className="mt-2 text-foreground-muted">{error}</p>
         </Card>
       </div>
@@ -411,7 +439,7 @@ export default function AdminPaymentsPage() {
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-foreground sm:text-3xl">{t('payments')}</h1>
         <p className="mt-2 text-foreground-muted">
-          Pregled svih plaćanja u sistemu ({pagination.total})
+          {t('paymentsOverview', { count: pagination.total })}
         </p>
       </div>
 
@@ -421,7 +449,7 @@ export default function AdminPaymentsPage() {
           <CardContent className="flex items-center gap-3 p-4">
             <Clock className="h-5 w-5 text-warning" />
             <div>
-              <p className="text-sm text-foreground-muted">Na čekanju</p>
+              <p className="text-sm text-foreground-muted">{t('paymentPending')}</p>
               <p className="text-xl font-bold">{stats?.pending || 0}</p>
               <p className="text-xs text-foreground-muted">
                 {formatPrice(stats?.pendingAmount || 0)}
@@ -433,7 +461,7 @@ export default function AdminPaymentsPage() {
           <CardContent className="flex items-center gap-3 p-4">
             <CheckCircle className="h-5 w-5 text-success" />
             <div>
-              <p className="text-sm text-foreground-muted">Završeno</p>
+              <p className="text-sm text-foreground-muted">{t('paymentCompleted')}</p>
               <p className="text-xl font-bold">{stats?.completed || 0}</p>
               <p className="text-xs text-foreground-muted">
                 {formatPrice(stats?.completedAmount || 0)}
@@ -445,7 +473,7 @@ export default function AdminPaymentsPage() {
           <CardContent className="flex items-center gap-3 p-4">
             <XCircle className="h-5 w-5 text-error" />
             <div>
-              <p className="text-sm text-foreground-muted">Neuspešno</p>
+              <p className="text-sm text-foreground-muted">{t('paymentFailed')}</p>
               <p className="text-xl font-bold">{stats?.failed || 0}</p>
             </div>
           </CardContent>
@@ -454,7 +482,7 @@ export default function AdminPaymentsPage() {
           <CardContent className="flex items-center gap-3 p-4">
             <RefreshCw className="h-5 w-5 text-foreground-muted" />
             <div>
-              <p className="text-sm text-foreground-muted">Refundirano</p>
+              <p className="text-sm text-foreground-muted">{t('paymentRefunded')}</p>
               <p className="text-xl font-bold">{stats?.refunded || 0}</p>
             </div>
           </CardContent>
@@ -465,7 +493,7 @@ export default function AdminPaymentsPage() {
       <Card className="mb-6">
         <CardContent className="flex items-center justify-between p-4">
           <div>
-            <p className="text-sm text-foreground-muted">Ukupan promet</p>
+            <p className="text-sm text-foreground-muted">{t('totalRevenue')}</p>
             <p className="text-2xl font-bold text-primary">
               {formatPrice(stats?.totalAmount || 0)}
             </p>
@@ -480,7 +508,7 @@ export default function AdminPaymentsPage() {
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-foreground-muted" />
             <Input
-              placeholder="Pretraži po klijentu ili smeštaju..."
+              placeholder={t('searchPayments')}
               value={searchQuery}
               onChange={(e) => handleSearchChange(e.target.value)}
               className="pl-10"
@@ -492,11 +520,11 @@ export default function AdminPaymentsPage() {
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Svi statusi</SelectItem>
-                <SelectItem value="PENDING">Na čekanju</SelectItem>
-                <SelectItem value="COMPLETED">Završeno</SelectItem>
-                <SelectItem value="FAILED">Neuspešno</SelectItem>
-                <SelectItem value="REFUNDED">Refundirano</SelectItem>
+                <SelectItem value="all">{t('allStatuses')}</SelectItem>
+                <SelectItem value="PENDING">{t('paymentPending')}</SelectItem>
+                <SelectItem value="COMPLETED">{t('paymentCompleted')}</SelectItem>
+                <SelectItem value="FAILED">{t('paymentFailed')}</SelectItem>
+                <SelectItem value="REFUNDED">{t('paymentRefunded')}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -514,7 +542,7 @@ export default function AdminPaymentsPage() {
             pageCount={pagination.totalPages}
             totalItems={pagination.total}
             onPageChange={handlePageChange}
-            emptyMessage="Nema pronađenih plaćanja"
+            emptyMessage={t('noPaymentsFound')}
           />
         </CardContent>
       </Card>

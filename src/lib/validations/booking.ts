@@ -1,23 +1,5 @@
 import { z } from 'zod';
 
-const destinationValues = [
-  'POLIHRONO',
-  'KALITEA',
-  'HANIOTI',
-  'PEFKOHORI',
-  'SIVIRI',
-  'KASANDRA_OTHER',
-  'NIKITI',
-  'NEOS_MARMARAS',
-  'SARTI',
-  'VOURVOUROU',
-  'SITONIJA_OTHER',
-  'PARALIJA',
-  'OLIMPIK_BIC',
-  'LEPTOKARIJA',
-  'PLATAMONA',
-] as const;
-
 const durationValues = ['2-3', '4-7', '8-10', '10+'] as const;
 
 const packageTypeValues = ['BASIC', 'BONUS'] as const;
@@ -53,9 +35,8 @@ export const travelFormSchema = z.object({
   arrivalDate: z.enum(['TODAY', 'TOMORROW'], {
     required_error: 'Izaberite dan dolaska',
   }),
-  destination: z.enum(destinationValues, {
-    required_error: 'Izaberite destinaciju',
-  }),
+  cityId: z.string().optional(),
+  customDestination: z.string().optional(),
   duration: z.enum(durationValues, {
     required_error: 'Izaberite dužinu boravka',
   }),
@@ -65,7 +46,13 @@ export const travelFormSchema = z.object({
     .regex(/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/, 'Unesite ispravno vreme (HH:MM)'),
   hasViber: z.boolean(),
   hasWhatsApp: z.boolean(),
-});
+}).refine(
+  (data) => data.cityId || (data.customDestination && data.customDestination.length >= 2),
+  {
+    message: 'Izaberite ili unesite destinaciju',
+    path: ['cityId'],
+  }
+);
 
 export const packageSelectionSchema = z.object({
   packageType: z.enum(packageTypeValues, {

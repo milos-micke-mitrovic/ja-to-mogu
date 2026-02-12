@@ -11,7 +11,7 @@ interface Accommodation {
   name: string;
   description: string | null;
   type: string;
-  destination: string;
+  cityId: string;
   address: string;
   beds: number;
   rooms: number;
@@ -86,7 +86,7 @@ export default function EditAccommodationPage() {
         name: accommodation.name,
         description: accommodation.description || '',
         type: accommodation.type,
-        destination: accommodation.destination,
+        cityId: accommodation.cityId,
         address: accommodation.address,
         beds: accommodation.beds,
         rooms: accommodation.rooms,

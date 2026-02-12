@@ -158,6 +158,7 @@ interface BookingEmailData {
   totalPrice: number;
   ownerName?: string;
   ownerPhone?: string;
+  paymentMethod?: string;
 }
 
 function formatDuration(duration: string): string {
@@ -236,6 +237,39 @@ export async function sendBookingConfirmationEmail(
         <p style="margin: 5px 0; color: #666; font-size: 14px;">${data.ownerName}${data.ownerPhone ? ` - ${data.ownerPhone}` : ''}</p>
         ` : ''}
       </div>
+
+      ${data.paymentMethod === 'bank_transfer' ? `
+      <div style="background-color: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; padding: 20px; margin: 20px 0;">
+        <h3 style="margin-top: 0; color: #0369a1;">Podaci za uplatu</h3>
+        <table style="width: 100%; font-size: 14px;">
+          <tr>
+            <td style="padding: 5px 0; color: #666;">Primalac:</td>
+            <td style="padding: 5px 0; text-align: right; font-weight: 600;">Ja To Mogu DOO</td>
+          </tr>
+          <tr>
+            <td style="padding: 5px 0; color: #666;">Banka:</td>
+            <td style="padding: 5px 0; text-align: right; font-weight: 600;">Banca Intesa</td>
+          </tr>
+          <tr>
+            <td style="padding: 5px 0; color: #666;">Broj računa:</td>
+            <td style="padding: 5px 0; text-align: right; font-weight: 600;">160-0000000000000-00</td>
+          </tr>
+          <tr>
+            <td style="padding: 5px 0; color: #666;">Model:</td>
+            <td style="padding: 5px 0; text-align: right; font-weight: 600;">97</td>
+          </tr>
+        </table>
+        <p style="margin-bottom: 0; color: #0369a1; font-size: 14px; font-weight: 600;">
+          Molimo uplatite u roku od 24 sata.
+        </p>
+      </div>
+      ` : data.paymentMethod === 'cash' ? `
+      <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 15px; margin: 20px 0;">
+        <p style="margin: 0; color: #166534; font-size: 14px;">
+          <strong>Plaćanje gotovinom pri dolasku.</strong> Pripremite gotovinu — plaćanje direktno vlasniku na licu mesta.
+        </p>
+      </div>
+      ` : ''}
 
       <p style="color: #666; font-size: 14px;">
         <strong>Napomena:</strong> Rezervacija važi 36 sati. Molimo vas da kontaktirate vlasnika smeštaja u tom periodu radi potvrde.

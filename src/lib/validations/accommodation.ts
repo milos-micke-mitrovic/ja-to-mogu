@@ -1,23 +1,5 @@
 import { z } from 'zod';
 
-const destinationValues = [
-  'POLIHRONO',
-  'KALITEA',
-  'HANIOTI',
-  'PEFKOHORI',
-  'SIVIRI',
-  'KASANDRA_OTHER',
-  'NIKITI',
-  'NEOS_MARMARAS',
-  'SARTI',
-  'VOURVOUROU',
-  'SITONIJA_OTHER',
-  'PARALIJA',
-  'OLIMPIK_BIC',
-  'LEPTOKARIJA',
-  'PLATAMONA',
-] as const;
-
 const statusValues = ['AVAILABLE', 'BOOKED', 'UNAVAILABLE'] as const;
 
 export const accommodationSchema = z.object({
@@ -27,9 +9,7 @@ export const accommodationSchema = z.object({
     .max(100, 'Naziv može imati najviše 100 karaktera'),
   description: z.string().max(2000, 'Opis može imati najviše 2000 karaktera').optional().nullable(),
   type: z.string().min(1, 'Tip smeštaja je obavezan'),
-  destination: z.enum(destinationValues, {
-    required_error: 'Izaberite destinaciju',
-  }),
+  cityId: z.string().min(1, 'Izaberite destinaciju'),
   address: z.string().min(5, 'Adresa mora imati najmanje 5 karaktera'),
   latitude: z.number().min(-90).max(90),
   longitude: z.number().min(-180).max(180),
@@ -72,7 +52,7 @@ export const seasonalPriceSchema = z.object({
 });
 
 export const accommodationFilterSchema = z.object({
-  destination: z.enum(destinationValues).optional(),
+  cityId: z.string().optional(),
   minPrice: z.number().min(0).optional(),
   maxPrice: z.number().min(0).optional(),
   minBeds: z.number().min(1).optional(),

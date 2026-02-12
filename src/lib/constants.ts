@@ -1,3 +1,12 @@
+// Bank details for bank transfer payments
+export const BANK_DETAILS = {
+  receiverName: 'Ja To Mogu DOO',
+  bankName: 'Banca Intesa',
+  accountNumber: '160-0000000000000-00',
+  model: '97',
+  referencePrefix: 'JTM',
+} as const;
+
 // Package prices (in RSD - can be adjusted for exchange rate)
 export const PACKAGE_PRICES = {
   BASIC: 3000,
@@ -12,38 +21,6 @@ export const OWNER_CANCELLATION_COMPENSATION_EUR = 20;
 
 // Maximum images per accommodation
 export const MAX_ACCOMMODATION_IMAGES = 5;
-
-// Destinations grouped by region
-export const DESTINATIONS = {
-  HALKIDIKI_KASANDRA: [
-    { value: 'POLIHRONO', label: 'Polihrono' },
-    { value: 'KALITEA', label: 'Kalitea' },
-    { value: 'HANIOTI', label: 'Hanioti' },
-    { value: 'PEFKOHORI', label: 'Pefkohori' },
-    { value: 'SIVIRI', label: 'Siviri' },
-    { value: 'KASANDRA_OTHER', label: 'Kasandra - Ostalo' },
-  ],
-  HALKIDIKI_SITONIJA: [
-    { value: 'NIKITI', label: 'Nikiti' },
-    { value: 'NEOS_MARMARAS', label: 'Neos Marmaras' },
-    { value: 'SARTI', label: 'Sarti' },
-    { value: 'VOURVOUROU', label: 'Vourvourou' },
-    { value: 'SITONIJA_OTHER', label: 'Sitonija - Ostalo' },
-  ],
-  OLIMPSKA_REGIJA: [
-    { value: 'PARALIJA', label: 'Paralija' },
-    { value: 'OLIMPIK_BIC', label: 'Olimpik Bič' },
-    { value: 'LEPTOKARIJA', label: 'Leptokarija' },
-    { value: 'PLATAMONA', label: 'Platamona' },
-  ],
-} as const;
-
-// All destinations flat list
-export const ALL_DESTINATIONS = [
-  ...DESTINATIONS.HALKIDIKI_KASANDRA,
-  ...DESTINATIONS.HALKIDIKI_SITONIJA,
-  ...DESTINATIONS.OLIMPSKA_REGIJA,
-] as const;
 
 // Duration options
 export const DURATION_OPTIONS = [
@@ -122,6 +99,7 @@ export const APP_ROUTES = {
   ADMIN: {
     ROOT: '/admin',
     ACCOMMODATIONS: '/admin/accommodations',
+    DESTINATIONS: '/admin/destinations',
     OWNERS: '/admin/owners',
     GUIDES: '/admin/guides',
     BOOKINGS: '/admin/bookings',

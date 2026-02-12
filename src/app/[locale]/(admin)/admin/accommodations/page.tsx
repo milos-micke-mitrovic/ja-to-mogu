@@ -31,7 +31,7 @@ import {
 import { formatPrice } from '@/lib/utils';
 import { cn } from '@/lib/utils';
 import { useApi } from '@/hooks';
-import { ALL_DESTINATIONS } from '@/lib/constants';
+import { DestinationSelect } from '@/components/ui/destination-select';
 import { useDebouncedCallback } from 'use-debounce';
 import { toast } from 'sonner';
 import { AccommodationFormDialog } from '@/components/admin/accommodation-form-dialog';
@@ -41,7 +41,11 @@ interface AdminAccommodation {
   id: string;
   name: string;
   type: string;
-  destination: string;
+  cityId: string;
+  city?: {
+    id: string;
+    name: string;
+  };
   address: string;
   status: string;
   minPricePerNight: number | null;
@@ -99,11 +103,6 @@ const getStatusLabel = (status: string) => {
   }
 };
 
-const getDestinationLabel = (destination: string) => {
-  const dest = ALL_DESTINATIONS.find((d) => d.value === destination);
-  return dest?.label || destination;
-};
-
 export default function AdminAccommodationsPage() {
   const t = useTranslations('admin');
   const [page, setPage] = useState(1);
@@ -147,7 +146,7 @@ export default function AdminAccommodationsPage() {
       params.set('status', statusFilter);
     }
     if (locationFilter !== 'all') {
-      params.set('destination', locationFilter);
+      params.set('cityId', locationFilter);
     }
 
     return `/api/admin/accommodations?${params.toString()}`;
@@ -247,12 +246,12 @@ export default function AdminAccommodationsPage() {
       ),
     },
     {
-      accessorKey: 'destination',
+      accessorKey: 'cityId',
       header: 'Lokacija',
       cell: ({ row }) => (
         <div className="flex items-center gap-2">
           <MapPin className="h-4 w-4 text-foreground-muted" />
-          <span className="text-sm">{getDestinationLabel(row.original.destination)}</span>
+          <span className="text-sm">{row.original.city?.name || row.original.cityId}</span>
         </div>
       ),
     },
@@ -396,19 +395,13 @@ export default function AdminAccommodationsPage() {
             </Select>
           </div>
           <div className="w-full sm:w-40">
-            <Select value={locationFilter} onValueChange={handleLocationChange}>
-              <SelectTrigger>
-                <SelectValue placeholder="Lokacija" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Sve lokacije</SelectItem>
-                {ALL_DESTINATIONS.map((dest) => (
-                  <SelectItem key={dest.value} value={dest.value}>
-                    {dest.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <DestinationSelect
+              value={locationFilter}
+              onValueChange={handleLocationChange}
+              showAllOption
+              allOptionLabel="Sve lokacije"
+              placeholder="Lokacija"
+            />
           </div>
         </CardContent>
       </Card>

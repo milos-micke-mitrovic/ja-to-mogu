@@ -28,6 +28,7 @@ import {
 import { formatPrice, formatDate, getWhatsAppLink, getViberLink } from '@/lib/utils';
 import { cn } from '@/lib/utils';
 import { useApi } from '@/hooks';
+import { toast } from 'sonner';
 
 interface OwnerBooking {
   id: string;
@@ -46,7 +47,7 @@ interface OwnerBooking {
   accommodation: {
     id: string;
     name: string;
-    destination: string;
+    city?: { name: string };
     address: string;
   };
 }
@@ -108,13 +109,13 @@ export default function OwnerBookingsPage() {
   const getJourneyStatusLabel = (status: string) => {
     switch (status) {
       case 'NOT_STARTED':
-        return 'Nije krenuo';
+        return t('journeyNotStarted');
       case 'DEPARTED':
-        return 'Na putu';
+        return t('journeyDeparted');
       case 'IN_GREECE':
-        return 'U Grčkoj';
+        return t('journeyInGreece');
       case 'ARRIVED':
-        return 'Stigao';
+        return t('journeyArrived');
       default:
         return status;
     }
@@ -137,27 +138,37 @@ export default function OwnerBookingsPage() {
 
   const handleConfirmBooking = async (bookingId: string) => {
     try {
-      await fetch(`/api/admin/bookings`, {
+      const res = await fetch(`/api/admin/bookings`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ bookingId, status: 'CONFIRMED' }),
       });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Greška pri potvrđivanju');
+      }
+      toast.success(t('bookingConfirmed') || 'Rezervacija je potvrđena');
       refetch();
     } catch (error) {
-      console.error('Error confirming booking:', error);
+      toast.error(error instanceof Error ? error.message : 'Greška pri potvrđivanju rezervacije');
     }
   };
 
   const handleCancelBooking = async (bookingId: string) => {
     try {
-      await fetch(`/api/admin/bookings`, {
+      const res = await fetch(`/api/admin/bookings`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ bookingId, status: 'CANCELLED' }),
       });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Greška pri odbijanju');
+      }
+      toast.success(t('bookingCancelled') || 'Rezervacija je odbijena');
       refetch();
     } catch (error) {
-      console.error('Error cancelling booking:', error);
+      toast.error(error instanceof Error ? error.message : 'Greška pri odbijanju rezervacije');
     }
   };
 
@@ -175,7 +186,7 @@ export default function OwnerBookingsPage() {
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-foreground sm:text-3xl">{t('bookings')}</h1>
         <p className="mt-2 text-foreground-muted">
-          Pregledajte i upravljajte rezervacijama za vaše smeštaje
+          {t('manageBookingsDescription')}
         </p>
       </div>
 
@@ -185,7 +196,7 @@ export default function OwnerBookingsPage() {
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-foreground-muted" />
             <Input
-              placeholder="Pretraži po imenu gosta ili smeštaju..."
+              placeholder={t('searchBookingsPlaceholder')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-10"
@@ -197,7 +208,7 @@ export default function OwnerBookingsPage() {
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Svi statusi</SelectItem>
+                <SelectItem value="all">{t('allStatuses')}</SelectItem>
                 <SelectItem value="PENDING">{t('pending')}</SelectItem>
                 <SelectItem value="CONFIRMED">{t('confirmed')}</SelectItem>
                 <SelectItem value="CHECKED_IN">{t('checkedIn')}</SelectItem>
@@ -274,7 +285,7 @@ export default function OwnerBookingsPage() {
                     <div className="grid gap-6 md:grid-cols-2">
                       {/* Guest Details */}
                       <div>
-                        <h4 className="mb-3 font-semibold">Podaci o gostu</h4>
+                        <h4 className="mb-3 font-semibold">{t('guestData')}</h4>
                         <div className="space-y-2 text-sm">
                           <div className="flex items-center gap-2">
                             <Mail className="h-4 w-4 text-foreground-muted" />
@@ -320,22 +331,22 @@ export default function OwnerBookingsPage() {
 
                       {/* Booking Details */}
                       <div>
-                        <h4 className="mb-3 font-semibold">Detalji rezervacije</h4>
+                        <h4 className="mb-3 font-semibold">{t('bookingDetailsLabel')}</h4>
                         <div className="space-y-2 text-sm">
                           <div className="flex justify-between">
-                            <span className="text-foreground-muted">Dolazak:</span>
+                            <span className="text-foreground-muted">{t('arrivalLabel')}</span>
                             <span>{formatDate(booking.arrivalDate)}{booking.arrivalTime ? ` u ${booking.arrivalTime}` : ''}</span>
                           </div>
                           <div className="flex justify-between">
-                            <span className="text-foreground-muted">Trajanje:</span>
+                            <span className="text-foreground-muted">{t('durationLabel')}</span>
                             <span>{booking.duration}</span>
                           </div>
                           <div className="flex justify-between">
-                            <span className="text-foreground-muted">Rezervisano:</span>
+                            <span className="text-foreground-muted">{t('bookedAtLabel')}</span>
                             <span>{formatDate(booking.createdAt)}</span>
                           </div>
                           <div className="flex justify-between font-medium">
-                            <span>Ukupno:</span>
+                            <span>{t('totalLabel')}</span>
                             <span className="text-primary">{formatPrice(booking.totalPrice)}</span>
                           </div>
                         </div>
@@ -348,11 +359,11 @@ export default function OwnerBookingsPage() {
                         <>
                           <Button size="sm" className="gap-2" onClick={() => handleConfirmBooking(booking.id)}>
                             <Check className="h-4 w-4" />
-                            Potvrdi
+                            {t('confirmBooking')}
                           </Button>
                           <Button size="sm" variant="outline" className="gap-2 text-error" onClick={() => handleCancelBooking(booking.id)}>
                             <X className="h-4 w-4" />
-                            Odbij
+                            {t('rejectBooking')}
                           </Button>
                         </>
                       )}

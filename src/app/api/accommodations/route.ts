@@ -2,10 +2,67 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const destination = searchParams.get('destination');
+    const id = searchParams.get('id');
+
+    // Single accommodation fetch by ID
+    if (id) {
+      const accommodation = await prisma.accommodation.findUnique({
+        where: { id },
+        include: {
+          city: true,
+          owner: {
+            select: {
+              id: true,
+              name: true,
+              phone: true,
+            },
+          },
+          reviews: {
+            select: {
+              rating: true,
+            },
+          },
+          seasonalPrices: {
+            select: {
+              season: true,
+              duration: true,
+              pricePerNight: true,
+            },
+          },
+        },
+      });
+
+      if (!accommodation) {
+        return NextResponse.json(
+          { error: 'Smeštaj nije pronađen' },
+          { status: 404 }
+        );
+      }
+
+      const ratings = accommodation.reviews.map((r) => r.rating);
+      const averageRating =
+        ratings.length > 0
+          ? ratings.reduce((a, b) => a + b, 0) / ratings.length
+          : null;
+      const prices = accommodation.seasonalPrices.map((sp) => sp.pricePerNight);
+      const minPricePerNight = prices.length > 0 ? Math.min(...prices) : null;
+
+      return NextResponse.json({
+        ...accommodation,
+        rating: averageRating,
+        reviewCount: ratings.length,
+        minPricePerNight,
+      });
+    }
+
+    const cityId = searchParams.get('cityId');
+    const page = parseInt(searchParams.get('page') || '1');
+    const limit = parseInt(searchParams.get('limit') || '12');
     const minPrice = searchParams.get('minPrice');
     const maxPrice = searchParams.get('maxPrice');
     const minBeds = searchParams.get('minBeds');
@@ -21,8 +78,8 @@ export async function GET(request: NextRequest) {
       status: 'AVAILABLE',
     };
 
-    if (destination) {
-      where.destination = destination as Prisma.EnumDestinationFilter;
+    if (cityId) {
+      where.cityId = cityId;
     }
 
     if (minBeds) {
@@ -48,36 +105,44 @@ export async function GET(request: NextRequest) {
       };
     }
 
-    const accommodations = await prisma.accommodation.findMany({
-      where,
-      include: {
-        owner: {
-          select: {
-            id: true,
-            name: true,
-            phone: true,
+    const skip = (page - 1) * limit;
+
+    const [accommodations, total] = await Promise.all([
+      prisma.accommodation.findMany({
+        where,
+        include: {
+          city: true,
+          owner: {
+            select: {
+              id: true,
+              name: true,
+              phone: true,
+            },
+          },
+          reviews: {
+            select: {
+              rating: true,
+            },
+          },
+          seasonalPrices: {
+            select: {
+              season: true,
+              duration: true,
+              pricePerNight: true,
+            },
           },
         },
-        reviews: {
-          select: {
-            rating: true,
-          },
+        orderBy: {
+          createdAt: 'desc',
         },
-        seasonalPrices: {
-          select: {
-            season: true,
-            duration: true,
-            pricePerNight: true,
-          },
-        },
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-    });
+        skip,
+        take: limit,
+      }),
+      prisma.accommodation.count({ where }),
+    ]);
 
     // Calculate average rating and get min price for each accommodation
-    const accommodationsWithRating = accommodations.map((acc) => {
+    const items = accommodations.map((acc) => {
       const ratings = acc.reviews.map((r) => r.rating);
       const averageRating =
         ratings.length > 0
@@ -96,7 +161,15 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    return NextResponse.json(accommodationsWithRating);
+    return NextResponse.json({
+      items,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    });
   } catch (error) {
     console.error('Error fetching accommodations:', error);
     return NextResponse.json(

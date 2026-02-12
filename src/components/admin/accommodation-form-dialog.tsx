@@ -17,7 +17,7 @@ import {
   SelectValue,
 } from '@/components/ui';
 import { Loader2 } from 'lucide-react';
-import { DESTINATIONS } from '@/lib/constants';
+import { DestinationSelect } from '@/components/ui/destination-select';
 
 interface Owner {
   id: string;
@@ -28,7 +28,7 @@ interface Owner {
 interface AccommodationFormData {
   name: string;
   type: string;
-  destination: string;
+  cityId: string;
   address: string;
   status: string;
   beds: number;
@@ -43,7 +43,7 @@ interface AccommodationFormDialogProps {
     id: string;
     name: string;
     type: string;
-    destination: string;
+    cityId: string;
     address: string;
     status: string;
     beds: number;
@@ -81,7 +81,7 @@ export function AccommodationFormDialog({
   const [formData, setFormData] = useState<AccommodationFormData>({
     name: '',
     type: 'APARTMENT',
-    destination: '',
+    cityId: '',
     address: '',
     status: 'AVAILABLE',
     beds: 1,
@@ -118,7 +118,7 @@ export function AccommodationFormDialog({
         setFormData({
           name: accommodation.name || '',
           type: accommodation.type || 'APARTMENT',
-          destination: accommodation.destination || '',
+          cityId: accommodation.cityId || '',
           address: accommodation.address || '',
           status: accommodation.status || 'AVAILABLE',
           beds: accommodation.beds || 1,
@@ -129,7 +129,7 @@ export function AccommodationFormDialog({
         setFormData({
           name: '',
           type: 'APARTMENT',
-          destination: '',
+          cityId: '',
           address: '',
           status: 'AVAILABLE',
           beds: 1,
@@ -240,40 +240,10 @@ export function AccommodationFormDialog({
 
           <div className="space-y-2">
             <Label htmlFor="destination">Destinacija *</Label>
-            <Select
-              value={formData.destination}
-              onValueChange={(value) => setFormData((prev) => ({ ...prev, destination: value }))}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Izaberite destinaciju" />
-              </SelectTrigger>
-              <SelectContent>
-                <div className="px-2 py-1.5 text-xs font-semibold text-foreground-muted">
-                  Halkidiki - Kasandra
-                </div>
-                {DESTINATIONS.HALKIDIKI_KASANDRA.map((dest) => (
-                  <SelectItem key={dest.value} value={dest.value}>
-                    {dest.label}
-                  </SelectItem>
-                ))}
-                <div className="px-2 py-1.5 text-xs font-semibold text-foreground-muted">
-                  Halkidiki - Sitonija
-                </div>
-                {DESTINATIONS.HALKIDIKI_SITONIJA.map((dest) => (
-                  <SelectItem key={dest.value} value={dest.value}>
-                    {dest.label}
-                  </SelectItem>
-                ))}
-                <div className="px-2 py-1.5 text-xs font-semibold text-foreground-muted">
-                  Olimpska regija
-                </div>
-                {DESTINATIONS.OLIMPSKA_REGIJA.map((dest) => (
-                  <SelectItem key={dest.value} value={dest.value}>
-                    {dest.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <DestinationSelect
+              value={formData.cityId}
+              onValueChange={(value) => setFormData((prev) => ({ ...prev, cityId: value }))}
+            />
           </div>
 
           <div className="space-y-2">
@@ -344,7 +314,7 @@ export function AccommodationFormDialog({
             >
               Otkaži
             </Button>
-            <Button type="submit" disabled={isSubmitting || !formData.ownerId || !formData.destination}>
+            <Button type="submit" disabled={isSubmitting || !formData.ownerId || !formData.cityId}>
               {isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />

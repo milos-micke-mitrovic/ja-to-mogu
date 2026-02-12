@@ -3,9 +3,27 @@ import { setRequestLocale } from 'next-intl/server';
 import { Link } from '@/i18n/routing';
 import { Logo, LogoIcon } from '@/components/ui';
 import { auth } from '@/lib/auth';
+import { prisma } from '@/lib/prisma';
 
 interface HomePageProps {
   params: Promise<{ locale: string }>;
+}
+
+interface DestinationCity {
+  id: string;
+  name: string;
+}
+
+interface DestinationRegion {
+  id: string;
+  name: string;
+  cities: DestinationCity[];
+}
+
+interface DestinationCountry {
+  id: string;
+  name: string;
+  regions: DestinationRegion[];
 }
 
 export default async function HomePage({ params }: HomePageProps) {
@@ -14,7 +32,24 @@ export default async function HomePage({ params }: HomePageProps) {
 
   const session = await auth();
 
-  return <HomeContent user={session?.user} />;
+  const countries = await prisma.country.findMany({
+    where: { isActive: true },
+    include: {
+      regions: {
+        where: { isActive: true },
+        include: {
+          cities: {
+            where: { isActive: true },
+            select: { id: true, name: true },
+          },
+        },
+        orderBy: { sortOrder: 'asc' },
+      },
+    },
+    orderBy: { sortOrder: 'asc' },
+  });
+
+  return <HomeContent user={session?.user} countries={countries} />;
 }
 
 interface HomeContentProps {
@@ -22,9 +57,10 @@ interface HomeContentProps {
     name?: string | null;
     role?: string;
   };
+  countries: DestinationCountry[];
 }
 
-function HomeContent({ user }: HomeContentProps) {
+function HomeContent({ user, countries }: HomeContentProps) {
   const t = useTranslations('landing');
   const tNav = useTranslations('navigation');
   const tPackages = useTranslations('packages');
@@ -122,26 +158,44 @@ function HomeContent({ user }: HomeContentProps) {
         <section className="py-16">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <h2 className="text-center text-2xl font-bold text-foreground">{t('destinations')}</h2>
-            <div className="mt-8 grid gap-6 md:grid-cols-3">
-              <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
-                <h3 className="font-semibold text-foreground">{t('halkidikiKasandra')}</h3>
-                <p className="mt-2 text-sm text-foreground-muted">
-                  Polihrono, Kalitea, Hanioti, Pefkohori, Siviri
-                </p>
+            {countries.length > 0 ? (
+              <div className="mt-8 space-y-8">
+                {countries.map((country) => (
+                  <div key={country.id}>
+                    {countries.length > 1 && (
+                      <h3 className="mb-4 text-lg font-semibold text-foreground">{country.name}</h3>
+                    )}
+                    <div className="grid gap-6 md:grid-cols-3">
+                      {country.regions.map((region) => (
+                        <div
+                          key={region.id}
+                          className="rounded-xl border border-border bg-card p-6 shadow-sm"
+                        >
+                          <h3 className="font-semibold text-foreground">
+                            {countries.length > 1
+                              ? `${country.name} - ${region.name}`
+                              : region.name}
+                          </h3>
+                          <p className="mt-1 text-xs text-primary">
+                            {region.cities.length}{' '}
+                            {region.cities.length === 1 ? 'grad' : region.cities.length < 5 ? 'grada' : 'gradova'}
+                          </p>
+                          {region.cities.length > 0 && (
+                            <p className="mt-2 text-sm text-foreground-muted">
+                              {region.cities.map((city) => city.name).join(', ')}
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </div>
-              <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
-                <h3 className="font-semibold text-foreground">{t('halkidikiSitonija')}</h3>
-                <p className="mt-2 text-sm text-foreground-muted">
-                  Nikiti, Neos Marmaras, Sarti, Vourvourou
-                </p>
-              </div>
-              <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
-                <h3 className="font-semibold text-foreground">{t('olimpskaRegija')}</h3>
-                <p className="mt-2 text-sm text-foreground-muted">
-                  Paralija, Olimpik Bič, Leptokarija, Platamona
-                </p>
-              </div>
-            </div>
+            ) : (
+              <p className="mt-8 text-center text-foreground-muted">
+                {t('heroDescription')}
+              </p>
+            )}
           </div>
         </section>
 

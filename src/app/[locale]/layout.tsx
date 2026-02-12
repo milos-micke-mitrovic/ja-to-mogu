@@ -1,23 +1,9 @@
 import type { Metadata } from 'next';
 import { NextIntlClientProvider } from 'next-intl';
 import { getMessages, setRequestLocale } from 'next-intl/server';
-import { Inter, JetBrains_Mono } from 'next/font/google';
 import { notFound } from 'next/navigation';
 import { Toaster } from 'sonner';
 import { routing } from '@/i18n/routing';
-import '../globals.css';
-
-const inter = Inter({
-  variable: '--font-inter',
-  subsets: ['latin', 'latin-ext'],
-  display: 'swap',
-});
-
-const jetbrainsMono = JetBrains_Mono({
-  variable: '--font-mono',
-  subsets: ['latin'],
-  display: 'swap',
-});
 
 export const metadata: Metadata = {
   title: {
@@ -100,11 +86,9 @@ export default async function LocaleLayout({ children, params }: LocaleLayoutPro
   const messages = await getMessages();
 
   return (
-    <html lang={locale} suppressHydrationWarning>
-      <body className={`${inter.variable} ${jetbrainsMono.variable} antialiased`}>
-        <NextIntlClientProvider messages={messages}>{children}</NextIntlClientProvider>
-        <Toaster position="top-right" richColors closeButton />
-      </body>
-    </html>
+    <NextIntlClientProvider messages={messages}>
+      {children}
+      <Toaster position="top-right" richColors closeButton />
+    </NextIntlClientProvider>
   );
 }

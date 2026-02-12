@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useCallback, useSyncExternalStore, ReactNode } from 'react';
 
 const SIDEBAR_COLLAPSED_KEY = 'admin-sidebar-collapsed';
 
@@ -16,24 +16,24 @@ const SidebarContext = createContext<SidebarContextType>({
   toggleCollapsed: () => {},
 });
 
+const subscribe = (callback: () => void) => {
+  window.addEventListener('storage', callback);
+  return () => window.removeEventListener('storage', callback);
+};
+
+const getSnapshot = () => localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === 'true';
+const getServerSnapshot = () => false;
+
 export function SidebarProvider({ children }: { children: ReactNode }) {
-  const [isCollapsed, setIsCollapsed] = useState(false);
-  const [isLoaded, setIsLoaded] = useState(false);
+  const isCollapsed = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+  const isLoaded = useSyncExternalStore(subscribe, () => true, () => false);
 
-  // Load collapsed state from localStorage
-  useEffect(() => {
-    const saved = localStorage.getItem(SIDEBAR_COLLAPSED_KEY);
-    if (saved !== null) {
-      setIsCollapsed(saved === 'true');
-    }
-    setIsLoaded(true);
-  }, []);
-
-  const toggleCollapsed = () => {
-    const newValue = !isCollapsed;
-    setIsCollapsed(newValue);
+  const toggleCollapsed = useCallback(() => {
+    const newValue = !getSnapshot();
     localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(newValue));
-  };
+    // Dispatch storage event to trigger re-render
+    window.dispatchEvent(new Event('storage'));
+  }, []);
 
   return (
     <SidebarContext.Provider value={{ isCollapsed, isLoaded, toggleCollapsed }}>

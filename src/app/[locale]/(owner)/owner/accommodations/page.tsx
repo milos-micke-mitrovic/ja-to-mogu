@@ -32,6 +32,7 @@ import { Link } from '@/i18n/routing';
 import { formatPrice } from '@/lib/utils';
 import { cn } from '@/lib/utils';
 import { useOwnerAccommodations } from '@/hooks';
+import { toast } from 'sonner';
 
 export default function OwnerAccommodationsPage() {
   const t = useTranslations('ownerDashboard');
@@ -46,7 +47,7 @@ export default function OwnerAccommodationsPage() {
     return accommodations.filter((acc) => {
       const matchesSearch =
         acc.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        acc.destination.toLowerCase().includes(searchQuery.toLowerCase());
+        (acc.city?.name || '').toLowerCase().includes(searchQuery.toLowerCase());
       const matchesStatus = statusFilter === 'all' || acc.status === statusFilter;
       return matchesSearch && matchesStatus;
     });
@@ -81,14 +82,19 @@ export default function OwnerAccommodationsPage() {
   const handleToggleStatus = async (accommodationId: string, currentStatus: string) => {
     const newStatus = currentStatus === 'AVAILABLE' ? 'BOOKED' : 'AVAILABLE';
     try {
-      await fetch(`/api/owner/accommodations/${accommodationId}`, {
+      const res = await fetch(`/api/owner/accommodations/${accommodationId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus }),
       });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Greška pri ažuriranju statusa');
+      }
+      toast.success(newStatus === 'AVAILABLE' ? t('markedAvailable') || 'Smeštaj je označen kao slobodan' : t('markedBooked') || 'Smeštaj je označen kao zauzet');
       refetch();
     } catch (error) {
-      console.error('Error updating status:', error);
+      toast.error(error instanceof Error ? error.message : 'Greška pri ažuriranju statusa');
     }
   };
 
@@ -107,7 +113,7 @@ export default function OwnerAccommodationsPage() {
         <div>
           <h1 className="text-2xl font-bold text-foreground sm:text-3xl">{t('accommodations')}</h1>
           <p className="mt-2 text-foreground-muted">
-            Upravljajte vašim smeštajnim jedinicama
+            {t('manageAccommodationsDescription')}
           </p>
         </div>
         <Link href="/owner/accommodations/new">
@@ -124,7 +130,7 @@ export default function OwnerAccommodationsPage() {
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-foreground-muted" />
             <Input
-              placeholder="Pretraži smeštaje..."
+              placeholder={t('searchAccommodations')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-10"
@@ -136,7 +142,7 @@ export default function OwnerAccommodationsPage() {
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Svi statusi</SelectItem>
+                <SelectItem value="all">{t('allStatuses')}</SelectItem>
                 <SelectItem value="AVAILABLE">{t('available')}</SelectItem>
                 <SelectItem value="BOOKED">{t('occupied')}</SelectItem>
                 <SelectItem value="UNAVAILABLE">{t('maintenance')}</SelectItem>
@@ -207,11 +213,11 @@ export default function OwnerAccommodationsPage() {
                 <div className="mb-4 flex flex-wrap gap-3 text-sm">
                   <span className="flex items-center gap-1">
                     <Bed className="h-4 w-4 text-foreground-muted" />
-                    {accommodation.beds} kreveta
+                    {accommodation.beds} {t('bedsCount')}
                   </span>
                   <span className="flex items-center gap-1">
                     <Home className="h-4 w-4 text-foreground-muted" />
-                    {accommodation.rooms} soba
+                    {accommodation.rooms} {t('roomsCount')}
                   </span>
                   <span className="flex items-center gap-1">
                     <Waves className="h-4 w-4 text-foreground-muted" />
@@ -249,10 +255,10 @@ export default function OwnerAccommodationsPage() {
                     <span className="text-lg font-bold text-primary">
                       {accommodation.minPricePerNight
                         ? formatPrice(accommodation.minPricePerNight)
-                        : 'Po dogovoru'}
+                        : t('byAgreement')}
                     </span>
                     {accommodation.minPricePerNight && (
-                      <span className="text-sm text-foreground-muted"> / noć</span>
+                      <span className="text-sm text-foreground-muted"> {t('perNight')}</span>
                     )}
                   </div>
                   <div className="flex gap-2">
@@ -264,8 +270,8 @@ export default function OwnerAccommodationsPage() {
                       }
                     >
                       {accommodation.status === 'AVAILABLE'
-                        ? 'Označi zauzeto'
-                        : 'Označi slobodno'}
+                        ? t('markBooked')
+                        : t('markFree')}
                     </Button>
                   </div>
                 </div>

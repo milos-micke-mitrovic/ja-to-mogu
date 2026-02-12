@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Card, CardHeader, CardTitle, CardContent, Button } from '@/components/ui';
 import {
@@ -19,6 +20,7 @@ import { Link } from '@/i18n/routing';
 import { getWhatsAppLink, getViberLink, getGoogleMapsUrl } from '@/lib/utils';
 import { cn } from '@/lib/utils';
 import { useApi } from '@/hooks';
+import { toast } from 'sonner';
 
 interface GuideClient {
   id: string;
@@ -39,7 +41,7 @@ interface GuideClient {
   accommodation: {
     id: string;
     name: string;
-    destination: string;
+    city?: { name: string };
     address: string;
     latitude: number;
     longitude: number;
@@ -53,9 +55,11 @@ interface GuideClient {
 export default function GuideDashboardPage() {
   const t = useTranslations('guideDashboard');
 
+  const [updatingStatus, setUpdatingStatus] = useState<Record<string, boolean>>({});
+
   // Fetch guide's clients
-  const { data: allClients, isLoading: loadingAll } = useApi<GuideClient[]>('/api/guide/clients');
-  const { data: todaysClients, isLoading: loadingToday } = useApi<GuideClient[]>('/api/guide/clients?today=true');
+  const { data: allClients, isLoading: loadingAll, refetch: refetchAll } = useApi<GuideClient[]>('/api/guide/clients');
+  const { data: todaysClients, isLoading: loadingToday, refetch: refetchToday } = useApi<GuideClient[]>('/api/guide/clients?today=true');
 
   // Calculate stats from real data
   const stats = {
@@ -107,6 +111,43 @@ export default function GuideDashboardPage() {
         return 'bg-success/10 text-success';
       default:
         return 'bg-muted text-foreground-muted';
+    }
+  };
+
+  const getNextJourneyStatus = (status: string): { nextStatus: string; label: string } | null => {
+    switch (status) {
+      case 'NOT_STARTED':
+        return { nextStatus: 'DEPARTED', label: t('nextDeparted') };
+      case 'DEPARTED':
+        return { nextStatus: 'IN_GREECE', label: t('nextInGreece') };
+      case 'IN_GREECE':
+        return { nextStatus: 'ARRIVED', label: t('nextArrived') };
+      default:
+        return null;
+    }
+  };
+
+  const handleUpdateJourneyStatus = async (bookingId: string, nextStatus: string) => {
+    setUpdatingStatus((prev) => ({ ...prev, [bookingId]: true }));
+    try {
+      const res = await fetch('/api/guide/clients', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bookingId, journeyStatus: nextStatus }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Greška pri ažuriranju statusa');
+      }
+
+      toast.success(t('journeyStatusUpdated'));
+      refetchAll();
+      refetchToday();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t('journeyStatusError'));
+    } finally {
+      setUpdatingStatus((prev) => ({ ...prev, [bookingId]: false }));
     }
   };
 
@@ -242,7 +283,7 @@ export default function GuideDashboardPage() {
 
                         {/* Accommodation Address */}
                         <div className="mt-3">
-                          <p className="text-xs font-medium text-foreground-muted">Adresa smeštaja:</p>
+                          <p className="text-xs font-medium text-foreground-muted">{t('accommodationAddress')}</p>
                           <p className="text-sm">{client.accommodation.address}</p>
                         </div>
                       </div>
@@ -256,7 +297,7 @@ export default function GuideDashboardPage() {
                           className="inline-flex items-center gap-2 rounded-lg bg-primary/10 px-3 py-2 text-sm font-medium text-primary hover:bg-primary/20"
                         >
                           <MapPin className="h-4 w-4" />
-                          Mapa
+                          {t('map')}
                         </a>
                         {client.guestInfo.hasViber && (
                           <a
@@ -280,6 +321,21 @@ export default function GuideDashboardPage() {
                             WhatsApp
                           </a>
                         )}
+                        {(() => {
+                          const next = getNextJourneyStatus(client.journeyStatus);
+                          if (!next) return null;
+                          return (
+                            <Button
+                              size="sm"
+                              loading={!!updatingStatus[client.id]}
+                              onClick={() => handleUpdateJourneyStatus(client.id, next.nextStatus)}
+                              className="gap-2"
+                            >
+                              <ArrowRight className="h-4 w-4" />
+                              {next.label}
+                            </Button>
+                          );
+                        })()}
                       </div>
                     </div>
                   </div>

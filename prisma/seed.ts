@@ -855,6 +855,146 @@ async function main() {
     },
   });
 
+  // ===== BONUS BOOKINGS WITH GUIDES (active, for guide dashboard testing) =====
+  console.log('📝 Creating active guide bookings...');
+
+  // 10. Confirmed BONUS booking for client1, guide1 — arriving in 3 days, Polihrono
+  const future3 = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
+  const booking10 = await prisma.booking.create({
+    data: {
+      userId: client1.id,
+      accommodationId: accommodation1.id,
+      guideId: guide1.id,
+      arrivalDate: future3,
+      arrivalTime: '14:00',
+      duration: 'FOUR_SEVEN',
+      packageType: 'BONUS',
+      totalPrice: 42000,
+      status: 'CONFIRMED',
+      journeyStatus: 'NOT_STARTED',
+      expiresAt: new Date(now.getTime() + 48 * 60 * 60 * 1000),
+      guestName: 'Petar Klijent',
+      guestEmail: 'klijent@jatomogu.rs',
+      guestPhone: '+381651234567',
+      hasViber: true,
+      hasWhatsApp: true,
+    },
+  });
+  await prisma.payment.create({
+    data: {
+      bookingId: booking10.id,
+      userId: client1.id,
+      amount: 42000,
+      currency: 'RSD',
+      status: 'PENDING',
+      paymentMethod: 'bank_transfer',
+    },
+  });
+
+  // 11. Confirmed BONUS booking for client2, guide1 — arriving today, Hanioti (for today's clients)
+  const todayDate = new Date();
+  todayDate.setHours(16, 0, 0, 0);
+  const booking11 = await prisma.booking.create({
+    data: {
+      userId: client2.id,
+      accommodationId: accommodation1.id,
+      guideId: guide1.id,
+      arrivalDate: todayDate,
+      arrivalTime: '16:00',
+      duration: 'TWO_THREE',
+      packageType: 'BONUS',
+      totalPrice: 23100,
+      status: 'CONFIRMED',
+      journeyStatus: 'DEPARTED',
+      departedAt: new Date(now.getTime() - 4 * 60 * 60 * 1000),
+      expiresAt: new Date(now.getTime() + 48 * 60 * 60 * 1000),
+      guestName: 'Milica Klijent',
+      guestEmail: 'milica.klijent@jatomogu.rs',
+      guestPhone: '+381661234567',
+      hasViber: true,
+      hasWhatsApp: false,
+    },
+  });
+  await prisma.payment.create({
+    data: {
+      bookingId: booking11.id,
+      userId: client2.id,
+      amount: 23100,
+      currency: 'RSD',
+      status: 'COMPLETED',
+      paymentMethod: 'cash',
+    },
+  });
+
+  // 12. Confirmed BONUS booking for client1, guide2 — arriving in 5 days, Nikiti
+  const future5 = new Date(now.getTime() + 5 * 24 * 60 * 60 * 1000);
+  const booking12 = await prisma.booking.create({
+    data: {
+      userId: client1.id,
+      accommodationId: accommodation3.id,
+      guideId: guide2.id,
+      arrivalDate: future5,
+      arrivalTime: '15:00',
+      duration: 'FOUR_SEVEN',
+      packageType: 'BONUS',
+      totalPrice: 35000,
+      status: 'CONFIRMED',
+      journeyStatus: 'NOT_STARTED',
+      expiresAt: new Date(now.getTime() + 48 * 60 * 60 * 1000),
+      guestName: 'Petar Klijent',
+      guestEmail: 'klijent@jatomogu.rs',
+      guestPhone: '+381651234567',
+      hasViber: true,
+      hasWhatsApp: true,
+    },
+  });
+  await prisma.payment.create({
+    data: {
+      bookingId: booking12.id,
+      userId: client1.id,
+      amount: 35000,
+      currency: 'RSD',
+      status: 'PENDING',
+      paymentMethod: 'bank_transfer',
+    },
+  });
+
+  // 13. Confirmed BONUS booking for client2, guide2 — arriving today, Paralija (for today's clients)
+  const todayDate2 = new Date();
+  todayDate2.setHours(18, 0, 0, 0);
+  const booking13 = await prisma.booking.create({
+    data: {
+      userId: client2.id,
+      accommodationId: accommodation4.id,
+      guideId: guide2.id,
+      arrivalDate: todayDate2,
+      arrivalTime: '18:00',
+      duration: 'EIGHT_TEN',
+      packageType: 'BONUS',
+      totalPrice: 47500,
+      status: 'CONFIRMED',
+      journeyStatus: 'IN_GREECE',
+      departedAt: new Date(now.getTime() - 8 * 60 * 60 * 1000),
+      arrivedGreeceAt: new Date(now.getTime() - 2 * 60 * 60 * 1000),
+      expiresAt: new Date(now.getTime() + 48 * 60 * 60 * 1000),
+      guestName: 'Milica Klijent',
+      guestEmail: 'milica.klijent@jatomogu.rs',
+      guestPhone: '+381661234567',
+      hasViber: false,
+      hasWhatsApp: true,
+    },
+  });
+  await prisma.payment.create({
+    data: {
+      bookingId: booking13.id,
+      userId: client2.id,
+      amount: 47500,
+      currency: 'RSD',
+      status: 'COMPLETED',
+      paymentMethod: 'bank_transfer',
+    },
+  });
+
   // Update booked accommodations
   await prisma.accommodation.update({
     where: { id: accommodation3.id },

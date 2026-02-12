@@ -20,16 +20,20 @@ function VerifyEmailContent() {
 
   useEffect(() => {
     if (!token) {
-      setStatus('invalid');
-      setMessage('Nevažeći link za verifikaciju.');
-      return;
+      const id = requestAnimationFrame(() => {
+        setStatus('invalid');
+        setMessage('Nevažeći link za verifikaciju.');
+      });
+      return () => cancelAnimationFrame(id);
     }
 
+    let cancelled = false;
     const verifyEmail = async () => {
       try {
         const response = await fetch(`/api/auth/verify-email?token=${token}`);
         const result = await response.json();
 
+        if (cancelled) return;
         if (response.ok) {
           setStatus('success');
           setMessage(result.message || 'Email uspešno verifikovan!');
@@ -38,12 +42,15 @@ function VerifyEmailContent() {
           setMessage(result.error || 'Greška pri verifikaciji emaila.');
         }
       } catch {
-        setStatus('error');
-        setMessage('Greška pri verifikaciji emaila.');
+        if (!cancelled) {
+          setStatus('error');
+          setMessage('Greška pri verifikaciji emaila.');
+        }
       }
     };
 
     verifyEmail();
+    return () => { cancelled = true; };
   }, [token]);
 
   if (status === 'loading') {

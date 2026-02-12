@@ -28,14 +28,14 @@ import {
   Eye,
   Filter,
   ChevronLeft,
+  ChevronRight,
   Star,
   Loader2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatPrice } from '@/lib/utils';
-import { ALL_DESTINATIONS } from '@/lib/constants';
 import { Link } from '@/i18n/routing';
-import { useAccommodations, type Accommodation } from '@/hooks';
+import { useAccommodations, useDestinations, type Accommodation } from '@/hooks';
 
 interface FilterState {
   minPrice?: number;
@@ -53,14 +53,19 @@ function CatalogContent() {
   const t = useTranslations('catalog');
   const router = useRouter();
   const searchParams = useSearchParams();
-  const destination = searchParams.get('destination') || undefined;
+  const cityId = searchParams.get('cityId') || undefined;
+  const customDestination = searchParams.get('destination') || undefined;
+  const { getCityName } = useDestinations();
 
   const [filters, setFilters] = useState<FilterState>({});
   const [showFilters, setShowFilters] = useState(false);
+  const [page, setPage] = useState(1);
 
   // Build API filter params
   const apiFilters = useMemo(() => ({
-    destination,
+    cityId: cityId,
+    page,
+    limit: 12,
     minPrice: filters.minPrice,
     maxPrice: filters.maxPrice,
     minBeds: filters.minBeds,
@@ -70,21 +75,28 @@ function CatalogContent() {
     hasKitchen: filters.hasKitchen,
     hasPool: filters.hasPool,
     hasSeaView: filters.hasSeaView,
-  }), [destination, filters]);
+  }), [cityId, page, filters]);
 
   // Fetch accommodations from API
-  const { data: accommodations, isLoading, error } = useAccommodations(apiFilters);
+  const { data, isLoading, error } = useAccommodations(apiFilters);
+  const accommodations = data?.items;
+  const pagination = data?.pagination;
 
-  const destinationLabel =
-    ALL_DESTINATIONS.find((d) => d.value === destination)?.label || destination || '';
+  const destinationLabel = cityId ? getCityName(cityId) : (customDestination || '');
 
   const handleSelectAccommodation = (accommodationId: string) => {
     sessionStorage.setItem('selectedAccommodation', accommodationId);
     router.push(`/booking-confirmation?id=${accommodationId}` as Parameters<typeof router.push>[0]);
   };
 
+  const updateFilters = (updater: (f: FilterState) => FilterState) => {
+    setFilters(updater);
+    setPage(1);
+  };
+
   const clearFilters = () => {
     setFilters({});
+    setPage(1);
   };
 
   const activeFilterCount = Object.values(filters).filter(Boolean).length;
@@ -135,7 +147,7 @@ function CatalogContent() {
                       placeholder={t('minPrice')}
                       value={filters.minPrice || ''}
                       onChange={(e) =>
-                        setFilters((f) => ({
+                        updateFilters((f) => ({
                           ...f,
                           minPrice: e.target.value ? Number(e.target.value) : undefined,
                         }))
@@ -146,7 +158,7 @@ function CatalogContent() {
                       placeholder={t('maxPrice')}
                       value={filters.maxPrice || ''}
                       onChange={(e) =>
-                        setFilters((f) => ({
+                        updateFilters((f) => ({
                           ...f,
                           maxPrice: e.target.value ? Number(e.target.value) : undefined,
                         }))
@@ -161,7 +173,7 @@ function CatalogContent() {
                   <Select
                     value={filters.minBeds?.toString() || ''}
                     onValueChange={(v) =>
-                      setFilters((f) => ({ ...f, minBeds: v ? Number(v) : undefined }))
+                      updateFilters((f) => ({ ...f, minBeds: v ? Number(v) : undefined }))
                     }
                   >
                     <SelectTrigger>
@@ -194,7 +206,7 @@ function CatalogContent() {
                           id={key}
                           checked={!!filters[key as keyof FilterState]}
                           onCheckedChange={(checked) =>
-                            setFilters((f) => ({ ...f, [key]: checked }))
+                            updateFilters((f) => ({ ...f, [key]: checked }))
                           }
                         />
                         <Label
@@ -252,6 +264,7 @@ function CatalogContent() {
               </Button>
             </Card>
           ) : (
+            <>
             <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
               {accommodations.map((accommodation: Accommodation) => (
                 <Card
@@ -358,6 +371,38 @@ function CatalogContent() {
                 </Card>
               ))}
             </div>
+
+            {/* Pagination */}
+            {pagination && pagination.totalPages > 1 && (
+              <div className="mt-8 flex items-center justify-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page <= 1}
+                  onClick={() => setPage((p) => p - 1)}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <span className="text-sm text-foreground-muted">
+                  {page} / {pagination.totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page >= pagination.totalPages}
+                  onClick={() => setPage((p) => p + 1)}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
+
+            {pagination && (
+              <p className="mt-2 text-center text-sm text-foreground-muted">
+                {pagination.total} smeštaja ukupno
+              </p>
+            )}
+            </>
           )}
         </div>
       </div>

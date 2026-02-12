@@ -12,17 +12,16 @@ import {
   Label,
 } from '@/components/ui';
 import { MapPin, Check, X, Save, Loader2 } from 'lucide-react';
-import { ALL_DESTINATIONS } from '@/lib/constants';
 import { cn } from '@/lib/utils';
-import { useApi } from '@/hooks';
+import { useApi, useDestinations } from '@/hooks';
 import { toast } from 'sonner';
 
 interface GuideAvailability {
   id: string;
-  destination: string;
+  cityId: string;
   isActive: boolean;
-  startDate: string;
-  endDate: string;
+  availableFrom: string;
+  availableTo: string;
 }
 
 export default function GuideAvailabilityPage() {
@@ -30,6 +29,7 @@ export default function GuideAvailabilityPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
   const [isAvailable, setIsAvailable] = useState(true);
+  const { countries, getCityName } = useDestinations();
 
   // Fetch existing availability
   const { data: availabilities, isLoading, refetch } = useApi<GuideAvailability[]>('/api/guide/availability');
@@ -39,7 +39,7 @@ export default function GuideAvailabilityPage() {
     if (availabilities && availabilities.length > 0) {
       const activeLocations = availabilities
         .filter((a) => a.isActive)
-        .map((a) => a.destination);
+        .map((a) => a.cityId);
       setSelectedLocations(activeLocations);
       setIsAvailable(activeLocations.length > 0);
     }
@@ -58,34 +58,34 @@ export default function GuideAvailabilityPage() {
 
     try {
       // Create/update availability for each selected location
-      const startDate = new Date().toISOString();
-      const endDate = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(); // 90 days from now
+      const availableFrom = new Date().toISOString();
+      const availableTo = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(); // 90 days from now
 
       // First, update existing ones to inactive if not selected
       if (availabilities) {
         for (const avail of availabilities) {
-          const shouldBeActive = selectedLocations.includes(avail.destination) && isAvailable;
+          const shouldBeActive = selectedLocations.includes(avail.cityId) && isAvailable;
           if (avail.isActive !== shouldBeActive) {
             await fetch('/api/guide/availability', {
               method: 'PATCH',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ availabilityId: avail.id, isActive: shouldBeActive }),
+              body: JSON.stringify({ id: avail.id, isActive: shouldBeActive }),
             });
           }
         }
       }
 
       // Then, create new entries for locations not yet in the database
-      const existingLocations = availabilities?.map((a) => a.destination) || [];
-      for (const location of selectedLocations) {
-        if (!existingLocations.includes(location)) {
+      const existingCityIds = availabilities?.map((a) => a.cityId) || [];
+      for (const cityId of selectedLocations) {
+        if (!existingCityIds.includes(cityId)) {
           await fetch('/api/guide/availability', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              destination: location,
-              startDate,
-              endDate,
+              cityId,
+              availableFrom,
+              availableTo,
               isActive: isAvailable,
             }),
           });
@@ -93,10 +93,10 @@ export default function GuideAvailabilityPage() {
       }
 
       refetch();
-      toast.success('Dostupnost je sačuvana');
+      toast.success(t('availabilitySaved'));
     } catch (error) {
       console.error('Error saving availability:', error);
-      toast.error('Greška pri čuvanju dostupnosti');
+      toast.error(t('availabilitySaveError'));
     } finally {
       setIsSaving(false);
     }
@@ -121,7 +121,7 @@ export default function GuideAvailabilityPage() {
       {/* Availability Status */}
       <Card className="mb-6">
         <CardHeader>
-          <CardTitle>Status dostupnosti</CardTitle>
+          <CardTitle>{t('availabilityStatus')}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-between">
@@ -140,12 +140,12 @@ export default function GuideAvailabilityPage() {
               </div>
               <div>
                 <p className="font-medium">
-                  {isAvailable ? 'Dostupan za rad' : 'Nije dostupan'}
+                  {isAvailable ? t('availableForWork') : t('notAvailableForWork')}
                 </p>
                 <p className="text-sm text-foreground-muted">
                   {isAvailable
-                    ? 'Možete primati nove klijente'
-                    : 'Nećete dobijati nove klijente'}
+                    ? t('canReceiveClients')
+                    : t('noNewClients')}
                 </p>
               </div>
             </div>
@@ -153,7 +153,7 @@ export default function GuideAvailabilityPage() {
               variant={isAvailable ? 'outline' : 'default'}
               onClick={() => setIsAvailable(!isAvailable)}
             >
-              {isAvailable ? 'Isključi dostupnost' : 'Uključi dostupnost'}
+              {isAvailable ? t('disableAvailability') : t('enableAvailability')}
             </Button>
           </div>
         </CardContent>
@@ -169,99 +169,42 @@ export default function GuideAvailabilityPage() {
         </CardHeader>
         <CardContent>
           <p className="mb-4 text-sm text-foreground-muted">
-            Izaberite lokacije na kojima ste dostupni za vođenje
+            {t('selectLocationsDescription')}
           </p>
 
           <div className="space-y-6">
-            {/* Halkidiki - Kasandra */}
-            <div>
-              <h4 className="mb-3 text-sm font-medium text-foreground-muted">
-                Halkidiki - Kasandra
-              </h4>
-              <div className="grid gap-3 sm:grid-cols-2">
-                {ALL_DESTINATIONS.filter((d) =>
-                  ['POLIHRONO', 'HANIOTI', 'PEFKOHORI', 'KRIOPIGI', 'KALITEA', 'AFITOS', 'SANI'].includes(
-                    d.value
-                  )
-                ).map((dest) => (
-                  <div key={dest.value} className="flex items-center gap-3">
-                    <Checkbox
-                      id={dest.value}
-                      checked={selectedLocations.includes(dest.value)}
-                      onCheckedChange={() => handleLocationToggle(dest.value)}
-                      disabled={!isAvailable}
-                    />
-                    <Label
-                      htmlFor={dest.value}
-                      className={cn(
-                        'cursor-pointer text-sm',
-                        !isAvailable && 'opacity-50'
-                      )}
-                    >
-                      {dest.label}
-                    </Label>
+            {countries.map((country) =>
+              country.regions.map((region) => (
+                <div key={region.id}>
+                  <h4 className="mb-3 text-sm font-medium text-foreground-muted">
+                    {countries.length > 1 || country.regions.length > 1
+                      ? `${country.name} - ${region.name}`
+                      : region.name}
+                  </h4>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {region.cities.map((city) => (
+                      <div key={city.id} className="flex items-center gap-3">
+                        <Checkbox
+                          id={city.id}
+                          checked={selectedLocations.includes(city.id)}
+                          onCheckedChange={() => handleLocationToggle(city.id)}
+                          disabled={!isAvailable}
+                        />
+                        <Label
+                          htmlFor={city.id}
+                          className={cn(
+                            'cursor-pointer text-sm',
+                            !isAvailable && 'opacity-50'
+                          )}
+                        >
+                          {city.name}
+                        </Label>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Halkidiki - Sitonija */}
-            <div>
-              <h4 className="mb-3 text-sm font-medium text-foreground-muted">
-                Halkidiki - Sitonija
-              </h4>
-              <div className="grid gap-3 sm:grid-cols-2">
-                {ALL_DESTINATIONS.filter((d) =>
-                  ['NIKITI', 'NEOS_MARMARAS', 'SARTI', 'VOURVOUROU', 'TORONI'].includes(d.value)
-                ).map((dest) => (
-                  <div key={dest.value} className="flex items-center gap-3">
-                    <Checkbox
-                      id={dest.value}
-                      checked={selectedLocations.includes(dest.value)}
-                      onCheckedChange={() => handleLocationToggle(dest.value)}
-                      disabled={!isAvailable}
-                    />
-                    <Label
-                      htmlFor={dest.value}
-                      className={cn(
-                        'cursor-pointer text-sm',
-                        !isAvailable && 'opacity-50'
-                      )}
-                    >
-                      {dest.label}
-                    </Label>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Olimpska regija */}
-            <div>
-              <h4 className="mb-3 text-sm font-medium text-foreground-muted">Olimpska regija</h4>
-              <div className="grid gap-3 sm:grid-cols-2">
-                {ALL_DESTINATIONS.filter((d) =>
-                  ['PARALIA', 'OLIMPIK_BIC', 'LEPTOKARIJA', 'PLATAMON'].includes(d.value)
-                ).map((dest) => (
-                  <div key={dest.value} className="flex items-center gap-3">
-                    <Checkbox
-                      id={dest.value}
-                      checked={selectedLocations.includes(dest.value)}
-                      onCheckedChange={() => handleLocationToggle(dest.value)}
-                      disabled={!isAvailable}
-                    />
-                    <Label
-                      htmlFor={dest.value}
-                      className={cn(
-                        'cursor-pointer text-sm',
-                        !isAvailable && 'opacity-50'
-                      )}
-                    >
-                      {dest.label}
-                    </Label>
-                  </div>
-                ))}
-              </div>
-            </div>
+                </div>
+              ))
+            )}
           </div>
         </CardContent>
       </Card>
@@ -273,21 +216,18 @@ export default function GuideAvailabilityPage() {
         </CardHeader>
         <CardContent>
           {selectedLocations.length === 0 ? (
-            <p className="text-foreground-muted">Niste izabrali nijednu lokaciju</p>
+            <p className="text-foreground-muted">{t('noLocationsSelected')}</p>
           ) : (
             <div className="flex flex-wrap gap-2">
-              {selectedLocations.map((loc) => {
-                const dest = ALL_DESTINATIONS.find((d) => d.value === loc);
-                return (
-                  <span
-                    key={loc}
-                    className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1 text-sm font-medium text-primary"
-                  >
-                    <MapPin className="h-3 w-3" />
-                    {dest?.label || loc}
-                  </span>
-                );
-              })}
+              {selectedLocations.map((cityId) => (
+                <span
+                  key={cityId}
+                  className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1 text-sm font-medium text-primary"
+                >
+                  <MapPin className="h-3 w-3" />
+                  {getCityName(cityId)}
+                </span>
+              ))}
             </div>
           )}
         </CardContent>

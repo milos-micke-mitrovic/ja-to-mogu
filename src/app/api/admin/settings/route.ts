@@ -26,9 +26,36 @@ export async function GET() {
       orderBy: { packageType: 'asc' },
     });
 
-    // Fetch location availability
+    // Fetch location availability with city info
     const locationAvailability = await prisma.locationAvailability.findMany({
-      orderBy: { destination: 'asc' },
+      include: {
+        city: {
+          include: {
+            region: {
+              include: {
+                country: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    // Fetch all active cities for the settings UI
+    const cities = await prisma.city.findMany({
+      where: { isActive: true },
+      include: {
+        region: {
+          include: {
+            country: true,
+          },
+        },
+      },
+      orderBy: [
+        { region: { country: { sortOrder: 'asc' } } },
+        { region: { sortOrder: 'asc' } },
+        { sortOrder: 'asc' },
+      ],
     });
 
     // Transform to easier format
@@ -37,15 +64,16 @@ export async function GET() {
       BONUS: packageSettings.find((p) => p.packageType === 'BONUS'),
     };
 
-    const unavailableLocations = locationAvailability
+    const unavailableCityIds = locationAvailability
       .filter((l) => !l.isAvailable)
-      .map((l) => l.destination);
+      .map((l) => l.cityId);
 
     return NextResponse.json({
       packages,
       packageSettings,
       locationAvailability,
-      unavailableLocations,
+      unavailableCityIds,
+      cities,
     });
   } catch (error) {
     console.error('Error fetching settings:', error);
@@ -76,7 +104,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { packageSettings, unavailableLocations } = body;
+    const { packageSettings, unavailableCityIds } = body;
 
     // Update package settings if provided
     if (packageSettings) {
@@ -97,23 +125,22 @@ export async function PATCH(request: NextRequest) {
     }
 
     // Update location availability if provided
-    if (unavailableLocations !== undefined) {
-      // Get all destinations from enum
-      const allDestinations = [
-        'POLIHRONO', 'KALITEA', 'HANIOTI', 'PEFKOHORI', 'SIVIRI', 'KASANDRA_OTHER',
-        'NIKITI', 'NEOS_MARMARAS', 'SARTI', 'VOURVOUROU', 'SITONIJA_OTHER',
-        'PARALIJA', 'OLIMPIK_BIC', 'LEPTOKARIJA', 'PLATAMONA'
-      ];
+    if (unavailableCityIds !== undefined) {
+      // Get all active cities
+      const allCities = await prisma.city.findMany({
+        where: { isActive: true },
+        select: { id: true },
+      });
 
-      // Update each destination
-      for (const destination of allDestinations) {
-        const isAvailable = !unavailableLocations.includes(destination);
+      // Update each city's availability
+      for (const city of allCities) {
+        const isAvailable = !unavailableCityIds.includes(city.id);
 
         await prisma.locationAvailability.upsert({
-          where: { destination: destination as never },
+          where: { cityId: city.id },
           update: { isAvailable },
           create: {
-            destination: destination as never,
+            cityId: city.id,
             isAvailable,
           },
         });
@@ -126,15 +153,15 @@ export async function PATCH(request: NextRequest) {
     });
 
     const updatedLocationAvailability = await prisma.locationAvailability.findMany({
-      orderBy: { destination: 'asc' },
+      include: { city: true },
     });
 
     return NextResponse.json({
       packageSettings: updatedPackageSettings,
       locationAvailability: updatedLocationAvailability,
-      unavailableLocations: updatedLocationAvailability
+      unavailableCityIds: updatedLocationAvailability
         .filter((l) => !l.isAvailable)
-        .map((l) => l.destination),
+        .map((l) => l.cityId),
     });
   } catch (error) {
     console.error('Error updating settings:', error);

@@ -16,21 +16,26 @@ import {
   Input,
   Label,
 } from '@/components/ui';
-import { CreditCard, ArrowLeft, Shield, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Landmark, Banknote, Building2, Copy, Check } from 'lucide-react';
 import { paymentFormSchema, type PaymentFormData } from '@/lib/validations/booking';
-import { PACKAGE_PRICES } from '@/lib/constants';
+import { PACKAGE_PRICES, BANK_DETAILS } from '@/lib/constants';
 import { formatPrice } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import { Link } from '@/i18n/routing';
+import { toast } from 'sonner';
 
 type PackageType = 'BASIC' | 'BONUS';
+type PaymentMethod = 'bank_transfer' | 'cash';
 
 export default function PaymentPage() {
   const t = useTranslations('payment');
   const tPackages = useTranslations('packages');
   const router = useRouter();
   const [selectedPackage, setSelectedPackage] = useState<PackageType | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [isReady, setIsReady] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(null);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [referenceNumber, setReferenceNumber] = useState('');
 
   const {
     register,
@@ -41,49 +46,40 @@ export default function PaymentPage() {
   });
 
   useEffect(() => {
-    // Get selected package from session storage
     const pkg = sessionStorage.getItem('selectedPackage') as PackageType | null;
+    setSelectedPackage(pkg);
+    setReferenceNumber(`${BANK_DETAILS.referencePrefix}-${Date.now().toString().slice(-8)}`);
+    setIsReady(true);
     if (!pkg) {
       router.push('/packages');
-      return;
     }
-    setSelectedPackage(pkg);
   }, [router]);
 
-  const onSubmit = async (data: PaymentFormData) => {
-    if (!selectedPackage) return;
-
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      // TODO: Implement actual payment processing
-      // For now, we'll simulate a successful payment
-
-      // Store payment data in session for the next step
-      sessionStorage.setItem('paymentData', JSON.stringify({
-        ...data,
-        packageType: selectedPackage,
-        amount: PACKAGE_PRICES[selectedPackage],
-        paidAt: new Date().toISOString(),
-      }));
-
-      // Simulate payment processing delay
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-
-      // Navigate to travel form
-      router.push('/travel-form');
-    } catch {
-      setError(t('failedDescription'));
-    } finally {
-      setIsLoading(false);
-    }
+  const copyToClipboard = (text: string, field: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedField(field);
+    toast.success('Kopirano');
+    setTimeout(() => setCopiedField(null), 2000);
   };
 
-  if (!selectedPackage) {
+  const onSubmit = (data: PaymentFormData) => {
+    if (!selectedPackage || !paymentMethod) return;
+
+    sessionStorage.setItem('paymentData', JSON.stringify({
+      ...data,
+      packageType: selectedPackage,
+      amount: PACKAGE_PRICES[selectedPackage],
+      paymentMethod,
+      paidAt: new Date().toISOString(),
+    }));
+
+    router.push('/travel-form');
+  };
+
+  if (!isReady || !selectedPackage) {
     return (
       <div className="flex min-h-[50vh] items-center justify-center">
-        <p className="text-foreground-muted">Učitavanje...</p>
+        <p className="text-foreground-muted">{t('processing')}</p>
       </div>
     );
   }
@@ -99,14 +95,14 @@ export default function PaymentPage() {
         className="mb-6 inline-flex items-center gap-2 text-sm text-foreground-muted hover:text-foreground"
       >
         <ArrowLeft className="h-4 w-4" />
-        Nazad na pakete
+        {tPackages('title')}
       </Link>
 
       <Card>
         <CardHeader>
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
-              <CreditCard className="h-5 w-5 text-primary" />
+              <Landmark className="h-5 w-5 text-primary" />
             </div>
             <div>
               <CardTitle>{t('title')}</CardTitle>
@@ -122,22 +118,115 @@ export default function PaymentPage() {
               <div>
                 <p className="font-medium">{packageName}</p>
                 <p className="text-sm text-foreground-muted">
-                  {selectedPackage === 'BONUS' && 'Uključuje vodiča na terenu'}
+                  {selectedPackage === 'BONUS' && tPackages('bonusFeature2')}
                 </p>
               </div>
               <p className="text-xl font-bold text-primary">{formatPrice(packagePrice)}</p>
             </div>
           </div>
 
-          {/* Error Message */}
-          {error && (
-            <div className="mb-6 flex items-start gap-3 rounded-lg bg-error-light p-4">
-              <AlertCircle className="h-5 w-5 flex-shrink-0 text-error" />
-              <p className="text-sm text-error-foreground">{error}</p>
+          {/* Payment Method Selection */}
+          <div className="mb-6">
+            <p className="mb-3 text-sm font-medium">{t('selectMethod')}</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {/* Bank Transfer */}
+              <button
+                type="button"
+                onClick={() => setPaymentMethod('bank_transfer')}
+                className={cn(
+                  'cursor-pointer rounded-lg border-2 p-4 text-left transition-all',
+                  paymentMethod === 'bank_transfer'
+                    ? 'border-primary bg-primary/5'
+                    : 'border-border hover:border-foreground-muted'
+                )}
+              >
+                <div className="mb-2 flex items-center gap-2">
+                  <Building2 className="h-5 w-5 text-primary" />
+                  <span className="font-medium">{t('bankTransfer')}</span>
+                </div>
+                <p className="text-xs text-foreground-muted">{t('bankTransferDesc')}</p>
+              </button>
+
+              {/* Cash */}
+              <button
+                type="button"
+                onClick={() => setPaymentMethod('cash')}
+                className={cn(
+                  'cursor-pointer rounded-lg border-2 p-4 text-left transition-all',
+                  paymentMethod === 'cash'
+                    ? 'border-primary bg-primary/5'
+                    : 'border-border hover:border-foreground-muted'
+                )}
+              >
+                <div className="mb-2 flex items-center gap-2">
+                  <Banknote className="h-5 w-5 text-primary" />
+                  <span className="font-medium">{t('cash')}</span>
+                </div>
+                <p className="text-xs text-foreground-muted">{t('cashDesc')}</p>
+              </button>
+            </div>
+          </div>
+
+          {/* Bank Details (shown when bank transfer selected) */}
+          {paymentMethod === 'bank_transfer' && (
+            <div className="mb-6 rounded-lg border border-primary/20 bg-primary/5 p-4">
+              <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold">
+                <Building2 className="h-4 w-4 text-primary" />
+                {t('bankDetails')}
+              </h3>
+              <div className="space-y-2 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-foreground-muted">{t('receiver')}:</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium">{BANK_DETAILS.receiverName}</span>
+                    <button
+                      type="button"
+                      onClick={() => copyToClipboard(BANK_DETAILS.receiverName, 'receiver')}
+                      className="cursor-pointer text-foreground-muted hover:text-foreground"
+                    >
+                      {copiedField === 'receiver' ? <Check className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />}
+                    </button>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-foreground-muted">{t('bankName')}:</span>
+                  <span className="font-medium">{BANK_DETAILS.bankName}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-foreground-muted">{t('accountNumber')}:</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium">{BANK_DETAILS.accountNumber}</span>
+                    <button
+                      type="button"
+                      onClick={() => copyToClipboard(BANK_DETAILS.accountNumber, 'account')}
+                      className="cursor-pointer text-foreground-muted hover:text-foreground"
+                    >
+                      {copiedField === 'account' ? <Check className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />}
+                    </button>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-foreground-muted">{t('model')}:</span>
+                  <span className="font-medium">{BANK_DETAILS.model}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-foreground-muted">{t('reference')}:</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium">{referenceNumber}</span>
+                    <button
+                      type="button"
+                      onClick={() => copyToClipboard(referenceNumber, 'reference')}
+                      className="cursor-pointer text-foreground-muted hover:text-foreground"
+                    >
+                      {copiedField === 'reference' ? <Check className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />}
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 
-          {/* Payment Form */}
+          {/* Payer Info Form */}
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="name">{t('name')}</Label>
@@ -174,31 +263,28 @@ export default function PaymentPage() {
               {errors.phone && <p className="text-sm text-error">{errors.phone.message}</p>}
             </div>
 
-            {/* Payment Method Placeholder */}
-            <div className="rounded-lg border-2 border-dashed border-border p-6 text-center">
-              <CreditCard className="mx-auto h-8 w-8 text-foreground-muted" />
-              <p className="mt-2 text-sm text-foreground-muted">
-                Sistem za plaćanje će biti integrisan
-              </p>
-              <p className="text-xs text-foreground-subtle">
-                (Stripe, PayPal, ili lokalni provajder)
-              </p>
-            </div>
-
-            <Button type="submit" size="lg" className="w-full" disabled={isLoading}>
-              {isLoading ? t('processing') : `${t('payNow')} - ${formatPrice(packagePrice)}`}
+            <Button
+              type="submit"
+              size="lg"
+              className="w-full"
+              disabled={!paymentMethod}
+            >
+              {t('continueToForm')}
             </Button>
           </form>
         </CardContent>
 
         <CardFooter className="flex-col gap-4 border-t pt-6">
-          <div className="flex items-center gap-2 text-sm text-foreground-muted">
-            <Shield className="h-4 w-4 text-success" />
-            Sigurna transakcija
-          </div>
-          <p className="text-center text-xs text-foreground-subtle">
-            Klikom na dugme &quot;Plati&quot; prihvatate naše uslove korišćenja
-          </p>
+          {paymentMethod === 'bank_transfer' && (
+            <p className="text-center text-xs text-foreground-muted">
+              {t('bankTransferInstructions')}
+            </p>
+          )}
+          {paymentMethod === 'cash' && (
+            <p className="text-center text-xs text-foreground-muted">
+              {t('cashInstructions')}
+            </p>
+          )}
         </CardFooter>
       </Card>
     </div>

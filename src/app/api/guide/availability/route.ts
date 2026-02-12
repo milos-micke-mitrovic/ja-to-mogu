@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { auth } from '@/lib/auth';
-import { Prisma } from '@prisma/client';
-
 // GET - Fetch guide's availability
 export async function GET() {
   try {
@@ -27,7 +25,7 @@ export async function GET() {
         guideId: session.user.id,
       },
       orderBy: [
-        { destination: 'asc' },
+        { cityId: 'asc' },
         { availableFrom: 'desc' },
       ],
     });
@@ -62,10 +60,10 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { destination, availableFrom, availableTo, isActive } = body;
+    const { cityId, availableFrom, availableTo, isActive } = body;
 
     // Validate required fields
-    if (!destination || !availableFrom || !availableTo) {
+    if (!cityId || !availableFrom || !availableTo) {
       return NextResponse.json(
         { error: 'Sva obavezna polja moraju biti popunjena' },
         { status: 400 }
@@ -86,7 +84,7 @@ export async function POST(request: NextRequest) {
     const overlapping = await prisma.guideAvailability.findFirst({
       where: {
         guideId: session.user.id,
-        destination: destination as Prisma.EnumDestinationFilter,
+        cityId,
         OR: [
           {
             AND: [
@@ -120,7 +118,7 @@ export async function POST(request: NextRequest) {
     const availability = await prisma.guideAvailability.create({
       data: {
         guideId: session.user.id,
-        destination,
+        cityId,
         availableFrom: fromDate,
         availableTo: toDate,
         isActive: isActive ?? true,
