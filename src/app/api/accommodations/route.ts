@@ -73,10 +73,18 @@ export async function GET(request: NextRequest) {
     const hasPool = searchParams.get('hasPool');
     const hasSeaView = searchParams.get('hasSeaView');
 
+    const showAll = searchParams.get('showAll');
+    const includeGuideAvailability = searchParams.get('includeGuideAvailability');
+
     // Build filters
-    const where: Prisma.AccommodationWhereInput = {
-      status: 'AVAILABLE',
-    };
+    const where: Prisma.AccommodationWhereInput = {};
+
+    if (!showAll) {
+      where.status = 'AVAILABLE';
+    } else {
+      // When showing all, exclude UNAVAILABLE (admin-disabled) ones
+      where.status = { in: ['AVAILABLE', 'BOOKED'] };
+    }
 
     if (cityId) {
       where.cityId = cityId;
@@ -141,6 +149,26 @@ export async function GET(request: NextRequest) {
       prisma.accommodation.count({ where }),
     ]);
 
+    // If BONUS package, fetch guide availability per city
+    let guideAvailabilityByCityId: Record<string, boolean> = {};
+    if (includeGuideAvailability === 'true') {
+      const now = new Date();
+      const availableGuides = await prisma.guideAvailability.findMany({
+        where: {
+          isActive: true,
+          availableFrom: { lte: now },
+          availableTo: { gte: now },
+        },
+        select: {
+          cityId: true,
+        },
+        distinct: ['cityId'],
+      });
+      guideAvailabilityByCityId = Object.fromEntries(
+        availableGuides.map((g) => [g.cityId, true])
+      );
+    }
+
     // Calculate average rating and get min price for each accommodation
     const items = accommodations.map((acc) => {
       const ratings = acc.reviews.map((r) => r.rating);
@@ -158,6 +186,9 @@ export async function GET(request: NextRequest) {
         rating: averageRating,
         reviewCount: ratings.length,
         minPricePerNight,
+        ...(includeGuideAvailability === 'true' && {
+          hasGuideAvailable: !!guideAvailabilityByCityId[acc.cityId],
+        }),
       };
     });
 

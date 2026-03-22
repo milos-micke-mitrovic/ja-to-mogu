@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useState, useMemo } from 'react';
+import { Suspense, useState, useMemo, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
@@ -15,6 +15,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  ConfirmDialog,
 } from '@/components/ui';
 import {
   MapPin,
@@ -31,10 +32,12 @@ import {
   ChevronRight,
   Star,
   Loader2,
+  Users,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatPrice } from '@/lib/utils';
 import { Link } from '@/i18n/routing';
+import { toast } from 'sonner';
 import { useAccommodations, useDestinations, type Accommodation } from '@/hooks';
 
 interface FilterState {
@@ -49,8 +52,54 @@ interface FilterState {
   hasSeaView?: boolean;
 }
 
+/** Pulsing availability indicator light */
+function StatusLight({ status, label }: { status: 'available' | 'booked'; label: string }) {
+  const isAvailable = status === 'available';
+  return (
+    <div className="flex items-center gap-2">
+      <span
+        className={cn(
+          'relative flex h-3.5 w-3.5 shrink-0 rounded-full',
+          isAvailable ? 'bg-available' : 'bg-error'
+        )}
+      >
+        {isAvailable && (
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-available opacity-50" />
+        )}
+      </span>
+      <span className={cn('text-xs font-medium', isAvailable ? 'text-available' : 'text-error')}>
+        {label}
+      </span>
+    </div>
+  );
+}
+
+/** Guide availability indicator (third light for BONUS package) */
+function GuideLight({ available }: { available: boolean }) {
+  const t = useTranslations('catalog');
+  return (
+    <div className="flex items-center gap-2">
+      <span
+        className={cn(
+          'relative flex h-3.5 w-3.5 shrink-0 rounded-full',
+          available ? 'bg-[#3B82F6]' : 'bg-unavailable'
+        )}
+      >
+        {available && (
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#3B82F6] opacity-50" />
+        )}
+      </span>
+      <Users className={cn('h-3.5 w-3.5', available ? 'text-[#3B82F6]' : 'text-unavailable')} />
+      <span className={cn('text-xs font-medium', available ? 'text-[#3B82F6]' : 'text-unavailable')}>
+        {available ? t('guideAvailable') : t('guideUnavailable')}
+      </span>
+    </div>
+  );
+}
+
 function CatalogContent() {
   const t = useTranslations('catalog');
+  const tBooking = useTranslations('booking');
   const router = useRouter();
   const searchParams = useSearchParams();
   const cityId = searchParams.get('cityId') || undefined;
@@ -60,12 +109,26 @@ function CatalogContent() {
   const [filters, setFilters] = useState<FilterState>({});
   const [showFilters, setShowFilters] = useState(false);
   const [page, setPage] = useState(1);
+  const [selectedAccommodation, setSelectedAccommodation] = useState<Accommodation | null>(null);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [isConfirming, setIsConfirming] = useState(false);
+  const [packageType, setPackageType] = useState<string | null>(null);
 
-  // Build API filter params
+  // Load package type from session
+  useEffect(() => {
+    const pkg = sessionStorage.getItem('selectedPackage');
+    setPackageType(pkg);
+  }, []);
+
+  const isBonus = packageType === 'BONUS';
+
+  // Build API filter params - show ALL accommodations with status indicators
   const apiFilters = useMemo(() => ({
     cityId: cityId,
     page,
     limit: 12,
+    showAll: true,
+    includeGuideAvailability: isBonus,
     minPrice: filters.minPrice,
     maxPrice: filters.maxPrice,
     minBeds: filters.minBeds,
@@ -75,18 +138,114 @@ function CatalogContent() {
     hasKitchen: filters.hasKitchen,
     hasPool: filters.hasPool,
     hasSeaView: filters.hasSeaView,
-  }), [cityId, page, filters]);
+  }), [cityId, page, filters, isBonus]);
 
   // Fetch accommodations from API
-  const { data, isLoading, error } = useAccommodations(apiFilters);
+  const { data, isLoading, error, refetch } = useAccommodations(apiFilters);
   const accommodations = data?.items;
   const pagination = data?.pagination;
 
   const destinationLabel = cityId ? getCityName(cityId) : (customDestination || '');
 
-  const handleSelectAccommodation = (accommodationId: string) => {
-    sessionStorage.setItem('selectedAccommodation', accommodationId);
-    router.push(`/booking-confirmation?id=${accommodationId}` as Parameters<typeof router.push>[0]);
+  const handleKreni = (accommodation: Accommodation) => {
+    if (accommodation.status !== 'AVAILABLE') return;
+    setSelectedAccommodation(accommodation);
+    setShowConfirmDialog(true);
+  };
+
+  const handleConfirmBooking = async () => {
+    if (!selectedAccommodation) return;
+
+    setIsConfirming(true);
+
+    try {
+      // Get travel and payment data from session
+      const travelFormDataStr = sessionStorage.getItem('travelFormData');
+      const paymentDataStr = sessionStorage.getItem('paymentData');
+
+      if (!travelFormDataStr || !paymentDataStr) {
+        toast.error('Podaci o putovanju nisu pronađeni. Molimo popunite formu ponovo.');
+        router.push('/travel-form');
+        return;
+      }
+
+      const travelData = JSON.parse(travelFormDataStr);
+      const packageData = JSON.parse(paymentDataStr);
+
+      // Calculate arrival date
+      const arrivalDate = travelData.arrivalDate === 'TODAY'
+        ? new Date().toISOString()
+        : new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
+      // Calculate total price
+      const getDurationDays = (duration: string): number => {
+        switch (duration) {
+          case '2-3': return 3;
+          case '4-7': return 7;
+          case '8-10': return 10;
+          case '10+': return 14;
+          default: return 1;
+        }
+      };
+      const durationDays = getDurationDays(travelData.duration);
+      const pricePerNight = selectedAccommodation.minPricePerNight || 0;
+      const totalPrice = pricePerNight * durationDays;
+
+      // Create booking via API
+      const response = await fetch('/api/bookings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          accommodationId: selectedAccommodation.id,
+          arrivalDate,
+          arrivalTime: travelData.arrivalTime,
+          packageType: packageData.packageType || 'BASIC',
+          totalPrice,
+          travelFormData: {
+            name: travelData.name || '',
+            email: travelData.email || '',
+            phone: travelData.phone || '',
+            address: travelData.address || '',
+            duration: travelData.duration,
+            hasViber: travelData.hasViber || false,
+            hasWhatsApp: travelData.hasWhatsApp || false,
+          },
+          paymentData: {
+            paymentMethod: packageData.paymentMethod || 'cash',
+            name: packageData.name,
+            email: packageData.email,
+            phone: packageData.phone,
+            paidAt: packageData.paidAt,
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Greška pri kreiranju rezervacije');
+      }
+
+      // Clear session data
+      sessionStorage.removeItem('selectedPackage');
+      sessionStorage.removeItem('paymentData');
+      sessionStorage.removeItem('travelFormData');
+      sessionStorage.removeItem('selectedAccommodation');
+
+      toast.success(tBooking('bookingSuccess'));
+
+      // Refresh the catalog to show updated status (green -> red)
+      refetch();
+
+      // Navigate to journey tracking
+      router.push('/journey');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Greška pri kreiranju rezervacije';
+      toast.error(message);
+      console.error('Booking error:', err);
+    } finally {
+      setIsConfirming(false);
+      setShowConfirmDialog(false);
+    }
   };
 
   const updateFilters = (updater: (f: FilterState) => FilterState) => {
@@ -116,6 +275,13 @@ function CatalogContent() {
         <p className="mt-2 text-foreground-muted">
           {t('subtitle', { destination: destinationLabel })}
         </p>
+
+        {/* Legend */}
+        <div className="mt-4 flex flex-wrap items-center gap-6 rounded-lg border border-border bg-muted/50 px-4 py-3">
+          <StatusLight status="available" label={t('statusAvailable')} />
+          <StatusLight status="booked" label={t('statusBooked')} />
+          {isBonus && <GuideLight available={true} />}
+        </div>
       </div>
 
       <div className="flex flex-col gap-6 lg:flex-row">
@@ -266,110 +432,137 @@ function CatalogContent() {
           ) : (
             <>
             <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
-              {accommodations.map((accommodation: Accommodation) => (
-                <Card
-                  key={accommodation.id}
-                  className="group overflow-hidden transition-shadow hover:shadow-lg"
-                >
-                  {/* Image */}
-                  <div className="relative aspect-[4/3] bg-muted">
-                    {accommodation.images && accommodation.images.length > 0 ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={accommodation.images[0]}
-                        alt={accommodation.name}
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      <div className="flex h-full items-center justify-center">
-                        <Home className="h-12 w-12 text-foreground-muted" />
-                      </div>
+              {accommodations.map((accommodation: Accommodation) => {
+                const isAvailable = accommodation.status === 'AVAILABLE';
+                const isBookedStatus = accommodation.status === 'BOOKED';
+
+                return (
+                  <Card
+                    key={accommodation.id}
+                    className={cn(
+                      'group overflow-hidden transition-shadow',
+                      isAvailable && 'hover:shadow-lg',
+                      isBookedStatus && 'opacity-75'
                     )}
-                    {/* Status Badge */}
-                    <div className="absolute left-3 top-3 rounded-full bg-available px-3 py-1 text-xs font-medium text-white">
-                      {t('available')}
-                    </div>
-                    {/* Rating */}
-                    {accommodation.rating && (
-                      <div className="absolute right-3 top-3 flex items-center gap-1 rounded-full bg-white/90 px-2 py-1 text-xs font-medium">
-                        <Star className="h-3 w-3 fill-primary text-primary" />
-                        {accommodation.rating.toFixed(1)}
-                      </div>
-                    )}
-                  </div>
-
-                  <CardContent className="p-4">
-                    {/* Name & Type */}
-                    <div className="mb-2">
-                      <h3 className="font-semibold text-foreground">{accommodation.name}</h3>
-                      <p className="text-sm text-foreground-muted">{accommodation.type}</p>
-                    </div>
-
-                    {/* Location */}
-                    <div className="mb-3 flex items-center gap-1 text-sm text-foreground-muted">
-                      <MapPin className="h-4 w-4" />
-                      {accommodation.address}
-                    </div>
-
-                    {/* Stats */}
-                    <div className="mb-4 flex flex-wrap gap-3 text-sm">
-                      <span className="flex items-center gap-1">
-                        <Bed className="h-4 w-4 text-foreground-muted" />
-                        {t('bedsCount', { count: accommodation.beds })}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Home className="h-4 w-4 text-foreground-muted" />
-                        {t('rooms', { count: accommodation.rooms })}
-                      </span>
-                      {accommodation.distanceToBeach && (
-                        <span className="flex items-center gap-1">
-                          <Waves className="h-4 w-4 text-foreground-muted" />
-                          {t('meters', { count: accommodation.distanceToBeach })}
-                        </span>
+                  >
+                    {/* Image */}
+                    <div className="relative aspect-[4/3] bg-muted">
+                      {accommodation.images && accommodation.images.length > 0 ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={accommodation.images[0]}
+                          alt={accommodation.name}
+                          className={cn(
+                            'h-full w-full object-cover',
+                            isBookedStatus && 'grayscale-[30%]'
+                          )}
+                        />
+                      ) : (
+                        <div className="flex h-full items-center justify-center">
+                          <Home className="h-12 w-12 text-foreground-muted" />
+                        </div>
                       )}
-                    </div>
 
-                    {/* Amenities */}
-                    <div className="mb-4 flex flex-wrap gap-2">
-                      {accommodation.hasParking && (
-                        <span className="rounded bg-muted px-2 py-1 text-xs">
-                          <Car className="inline h-3 w-3" /> Parking
-                        </span>
-                      )}
-                      {accommodation.hasAC && (
-                        <span className="rounded bg-muted px-2 py-1 text-xs">
-                          <Wind className="inline h-3 w-3" /> Klima
-                        </span>
-                      )}
-                      {accommodation.hasWifi && (
-                        <span className="rounded bg-muted px-2 py-1 text-xs">
-                          <Wifi className="inline h-3 w-3" /> WiFi
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Price & CTA */}
-                    <div className="flex items-center justify-between border-t pt-4">
-                      <div>
-                        <span className="text-lg font-bold text-primary">
-                          {accommodation.minPricePerNight
-                            ? formatPrice(accommodation.minPricePerNight)
-                            : 'Po dogovoru'}
-                        </span>
-                        {accommodation.minPricePerNight && (
-                          <span className="text-sm text-foreground-muted"> / {t('perNight')}</span>
+                      {/* Availability Indicators */}
+                      <div className="absolute left-3 top-3 flex flex-col gap-1.5">
+                        <StatusLight
+                          status={isAvailable ? 'available' : 'booked'}
+                          label={isAvailable ? t('statusAvailable') : t('statusBooked')}
+                        />
+                        {isBonus && (
+                          <GuideLight available={!!accommodation.hasGuideAvailable} />
                         )}
                       </div>
-                      <Button
-                        size="sm"
-                        onClick={() => handleSelectAccommodation(accommodation.id)}
-                      >
-                        {t('confirmAccommodation')}
-                      </Button>
+
+                      {/* Rating */}
+                      {accommodation.rating && (
+                        <div className="absolute right-3 top-3 flex items-center gap-1 rounded-full bg-white/90 px-2 py-1 text-xs font-medium">
+                          <Star className="h-3 w-3 fill-primary text-primary" />
+                          {accommodation.rating.toFixed(1)}
+                        </div>
+                      )}
                     </div>
-                  </CardContent>
-                </Card>
-              ))}
+
+                    <CardContent className="p-4">
+                      {/* Name & Type */}
+                      <div className="mb-2">
+                        <h3 className="font-semibold text-foreground">{accommodation.name}</h3>
+                        <p className="text-sm text-foreground-muted">{accommodation.type}</p>
+                      </div>
+
+                      {/* Location */}
+                      <div className="mb-3 flex items-center gap-1 text-sm text-foreground-muted">
+                        <MapPin className="h-4 w-4" />
+                        {accommodation.address}
+                      </div>
+
+                      {/* Stats */}
+                      <div className="mb-4 flex flex-wrap gap-3 text-sm">
+                        <span className="flex items-center gap-1">
+                          <Bed className="h-4 w-4 text-foreground-muted" />
+                          {t('bedsCount', { count: accommodation.beds })}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Home className="h-4 w-4 text-foreground-muted" />
+                          {t('rooms', { count: accommodation.rooms })}
+                        </span>
+                        {accommodation.distanceToBeach && (
+                          <span className="flex items-center gap-1">
+                            <Waves className="h-4 w-4 text-foreground-muted" />
+                            {t('meters', { count: accommodation.distanceToBeach })}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Amenities */}
+                      <div className="mb-4 flex flex-wrap gap-2">
+                        {accommodation.hasParking && (
+                          <span className="rounded bg-muted px-2 py-1 text-xs">
+                            <Car className="inline h-3 w-3" /> Parking
+                          </span>
+                        )}
+                        {accommodation.hasAC && (
+                          <span className="rounded bg-muted px-2 py-1 text-xs">
+                            <Wind className="inline h-3 w-3" /> Klima
+                          </span>
+                        )}
+                        {accommodation.hasWifi && (
+                          <span className="rounded bg-muted px-2 py-1 text-xs">
+                            <Wifi className="inline h-3 w-3" /> WiFi
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Price & KRENI Button */}
+                      <div className="flex items-center justify-between border-t pt-4">
+                        <div>
+                          <span className="text-lg font-bold text-primary">
+                            {accommodation.minPricePerNight
+                              ? formatPrice(accommodation.minPricePerNight)
+                              : 'Po dogovoru'}
+                          </span>
+                          {accommodation.minPricePerNight && (
+                            <span className="text-sm text-foreground-muted"> / {t('perNight')}</span>
+                          )}
+                        </div>
+                        {isAvailable ? (
+                          <Button
+                            size="sm"
+                            className="gap-1 bg-available font-bold text-white hover:bg-available/90"
+                            onClick={() => handleKreni(accommodation)}
+                          >
+                            {t('kreni')}
+                          </Button>
+                        ) : (
+                          <span className="rounded-md bg-error/10 px-3 py-1.5 text-xs font-medium text-error">
+                            {t('accommodationBooked')}
+                          </span>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
 
             {/* Pagination */}
@@ -406,6 +599,18 @@ function CatalogContent() {
           )}
         </div>
       </div>
+
+      {/* Confirmation Dialog - Final Decision Warning */}
+      <ConfirmDialog
+        open={showConfirmDialog}
+        onOpenChange={setShowConfirmDialog}
+        title={t('finalDecisionTitle')}
+        description={t('finalDecisionWarning')}
+        confirmLabel={isConfirming ? t('confirmingBooking') : t('finalDecisionConfirm')}
+        cancelLabel={t('finalDecisionCancel')}
+        onConfirm={handleConfirmBooking}
+        isLoading={isConfirming}
+      />
     </div>
   );
 }

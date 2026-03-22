@@ -42,6 +42,7 @@ export interface Accommodation {
   rating?: number;
   reviewCount?: number;
   minPricePerNight?: number;
+  hasGuideAvailable?: boolean;
 }
 
 interface AccommodationFilters {
@@ -57,6 +58,8 @@ interface AccommodationFilters {
   hasKitchen?: boolean;
   hasPool?: boolean;
   hasSeaView?: boolean;
+  showAll?: boolean;
+  includeGuideAvailability?: boolean;
 }
 
 function buildQueryString(filters: AccommodationFilters): string {

@@ -167,7 +167,18 @@
     "confirmAccommodation": "Potvrdi smeštaj",
     "viewOnMap": "Pogledaj na mapi",
     "available": "Slobodno",
-    "booked": "Rezervisano"
+    "booked": "Zauzeto",
+    "guideAvailable": "Vodič dostupan",
+    "guideUnavailable": "Vodič nedostupan",
+    "kreni": "KRENI",
+    "accommodationBooked": "Ovaj smeštaj je trenutno zauzet",
+    "finalDecisionTitle": "Potvrda aranžmana",
+    "finalDecisionWarning": "VAŽNO: Ova odluka je definitivna! Nakon potvrde nema promene termina niti smeštaja. Da li ste sigurni da želite da potvrdite ovaj smeštaj?",
+    "finalDecisionConfirm": "Da, potvrđujem - KRENI",
+    "finalDecisionCancel": "Nazad na katalog",
+    "confirmingBooking": "Potvrđivanje...",
+    "statusAvailable": "Slobodno",
+    "statusBooked": "Zauzeto"
   },
   "booking": {
     "confirmationTitle": "Pogledaj podatke o svom smeštaju",
